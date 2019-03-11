@@ -7,15 +7,18 @@ Created on Sun Mar 10 19:20:12 2019
 
 from screen_info import prefer_size
 import pygame
-from pygame.locals import QUIT
+from pygame.locals import *
 from os import path
 
 def run_game():
     """bắt đầu game"""
     pygame.init()    
     main_panel = pygame.display.set_mode((Width,Height)) 
-    link = path.join("images","background.jpg") #để đảm bảo truy cập đc file
-    bg = pygame.image.load(link).convert_alpha() #nhất là trên Mac của Ngọc
+    link_bg = path.join("images","background.jpg") #để đảm bảo truy cập đc file
+    bg = pygame.image.load(link_bg).convert_alpha() #nhất là trên Mac của Ngọc
+    link_music = path.join("audios","bg_audio.wav")
+    pygame.mixer.music.load(link_music)
+    pygame.mixer.music.play(-1)#nhạc sẽ chạy liên tục
     main_panel.blit(bg,(0,0))
     pygame.display.update()
     pygame.display.set_caption("Battleship")
@@ -26,7 +29,7 @@ def run_game():
         fps_clock.tick(FPS)
         for event in  pygame.event.get():
             if event.type == QUIT:          
-                run_game = False
+                run_game =  False
     pygame.quit()
 if __name__ == "__main__":
     """constant"""
