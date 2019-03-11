@@ -17,11 +17,11 @@ def prefer_size():
     Screen_Width,Screen_Height = get_screen_info()
     aspect_ratio = Screen_Width/Screen_Height
     if(aspect_ratio >= 1.778):
-        Prefer_Height = Screen_Height
-        Prefer_Width = int(Screen_Height/9)*16      
+        Prefer_Height = int(Screen_Height*0.8)
+        Prefer_Width = int(Prefer_Height/9)*16      
     else:
-        Prefer_Width = Screen_Width
-        Prefer_Height = int(Screen_Width/16)*9
+        Prefer_Width = int(Screen_Width*0.8)
+        Prefer_Height = int(Prefer_Width/16)*9
     return (Prefer_Width,Prefer_Height)
 
         
