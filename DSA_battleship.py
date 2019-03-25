@@ -3,7 +3,7 @@ from copy import deepcopy
 
 
 class BattleshipGame():
-    #Initial boards
+    #Initial boards, ships
     def __init__(self, ships):
         self.userBoard = []
         self.userShips = dict(ships)
