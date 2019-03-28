@@ -95,7 +95,7 @@ class BattleshipGame():
 
         if board[x][y] == ' ':
             if orientation == 'v':
-                if x + size > 9:
+                if x + size - 1 > 9:
                     return False
                 else:
                     for i in range(size):
@@ -105,7 +105,7 @@ class BattleshipGame():
                         board[x + i][y] = ship
                     return True
             elif orientation == 'h':
-                if y + size > 9:
+                if y + size - 1 > 9:
                     return False
                 else:
                     for i in range(size):
