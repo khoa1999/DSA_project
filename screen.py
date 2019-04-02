@@ -1,17 +1,20 @@
 # -*- coding: utf-8 -*-
 """
 Created on Sun Mar 10 18:53:44 2019
-
+3
 @author: Đăng Khoa
 """
 
 import tkinter as tk
 import pygame
+from abc import ABC,abstractmethod
+from os import path
 """ tìm độ phân giải của màn hình """
 def get_screen_info():
     root = tk.Tk()
     Screen_Width = root.winfo_screenwidth()
     Screen_Height = root.winfo_screenheight()
+    root.destroy()
     return (Screen_Width,Screen_Height)
 """setup độ phân giải tối ưu cho từng máy"""
 def prefer_size():
@@ -24,74 +27,362 @@ def prefer_size():
         Prefer_Width = int(Screen_Width*0.8)
         Prefer_Height = int(Prefer_Width/16)*9
     return (Prefer_Width,Prefer_Height)
-
-class Button():
-    def __init__(self,color:tuple,coordinate:tuple,frame,text = "",
-                 str_color = (255,255,255)):
-        self.text = text
-        self.color = color
-        self.coordinate = coordinate
+"""Base class of object in the game """
+class Icon():
+    def __init__(self,x:int,y:int,length:int,height:int,frame:pygame.display):
+        self.x = x
+        self.y = y
+        self.w = length
+        self.h = height
         self.frame = frame
-        self.str_color = str_color
-    def draw(self):
-        pygame.draw.rect(self.frame,self.color,self.coordinate)  
-        self.render_string()
-    def render_string(self):
-        font = pygame.font.Font(None,1000)
-        text = font.render(self.text,True,self.str_color)
-        text = pygame.transform.scale(text,(int(0.8*self.coordinate[2]),
-                                     int(self.coordinate[3]*0.8)))
-        self.frame.blit(text,(int(self.coordinate[0] + 0.1*self.coordinate[2]),
-                        int(self.coordinate[1] + 0.1*self.coordinate[3])))
     def mouse_on(self,mouse_pos:tuple):
         """cho bk chuột cho trên nút không"""
-        if(self.x + self.width
-        >=mouse_pos[0]>=self.x and self.y + self.height
+        if(self.x + self.w
+        >=mouse_pos[0]>=self.x and self.y + self.h
         >=mouse_pos[1]>=self.y ):
             return True
         return False
-    
-    """getter and setter"""
-    
-    @property
-    def width(self):
-        return self.coordinate[2]
-    @width.setter
-    def width(self,num):
-        self.coordinate = (self.coordinate[0],self.coordinate[1],
-                           int(num),self.coordinate[3])
-    @property
-    def height(self):
-        return self.coordinate[3]
-    @height.setter
-    def height(self,num):
-        self.coordinate = (self.coordinate[0],self.coordinate[1],
-                           self.coordinate[2],num)   
+    @abstractmethod
+    def draw(self):
+        pass
+"""Topping lên Icon"""
+class Decorator(Icon):
+    def __init__(self,icon:Icon):
+        self.parent = icon
+        super().__init__(icon.x,icon.y,icon.w,icon.h,icon.frame)
+    def mouse_on(self,mouse_pos):
+        return self.parent.mouse_on(mouse_pos)       
+"""Inherted từ class Icon để base hình chữ nhật"""    
+class Panel(Icon):
+    def __init__(self,x,y,height,length,color:tuple,frame:pygame.display):
+        self.color = color
+        super().__init__(x,y,height,length,frame)
+    def draw(self):
+        surface = pygame.Surface((self.w,self.h),pygame.SRCALPHA)
+        surface.fill(self.color)
+        self.frame.blit(surface,(self.x,self.y))  
+"""Topping text on panel"""        
+class Text(Decorator):
+    def __init__(self,text:str,color:tuple,panel:Icon):
+        super().__init__(panel)
+        self.color = color
+        self.text = text
+    def draw(self):
+        font = pygame.font.Font(None,1000)
+        text = font.render(self.text,True,self.color)
+        self.parent.draw()
+        text = pygame.transform.scale(text,(int(0.8*self.w),int(0.8*self.h)))
+        self.frame.blit(text,(int(self.x + 0.1*self.w),
+                              int(self.y + 0.1*self.h)))  
+"""Topping image on panel"""
+class Image(Decorator):
+    def __init__(self,link:str,panel:Icon):
+        super().__init__(panel)
+        self.image = pygame.image.load(path.join("images",link))
+        self.image = pygame.transform.scale(self.image,(panel.w,panel.h))
+    def draw(self):
+        self.parent.draw()
+        self.frame.blit(self.image,(self.x,self.y))
+"""Ship base class"""      
+class Ship(Icon):
+    def __init__(self,link,x,y,frame,health):
+        self.link = link
+        self.ima = pygame.image.load(link).convert_alpha()
+        w,h = self.image.get_size()
+        self._placed = False
+        self._x = x
+        self._y = y
+        self.sink = False
+        self._health = health
+        self._health_left = health
+        self.base_ship = self
+        self._num_rotate = 0
+        super().__init__(x,y,w,h,frame) 
+    def draw(self):
+        self.frame.blit(self.image,(self.x,self.y))
+    def fixed(self):
+        self._placed = True        
+    def rotate(self):
+        if(not self._placed):
+            self._num_rotate += 1
+            self.image = pygame.transform.rotate(self.image,90)
+    def undo(self):
+        self._placed = False
+        return self
+    def hitandupdate(self,section:int):
+        return BuildShip.update_ship(self,section)
+    def get_health(self):
+        return self._health_left
     @property
     def x(self):
-        return self.coordinate[0]
+        return self._x
     @x.setter
     def x(self,num):
-        self.coordinate = (num,self.coordinate[1],
-                           self.coordinate[2],self.coordinate[3])
+        if(not self._placed):
+            self._x = num
     @property
     def y(self):
-        return self.coordinate[1]
+        return self._y
     @y.setter
     def y(self,num):
-        self.coordinate = (self.coordinate[0],num,
-                           self.coordinate[2],self.coordinate[3])  
+        if(not self._placed):
+            self._y= num    
     @property
-    def bg(self):
-        return self.color
-    @bg.setter
-    def bg(self,color:tuple):
-        self.color = color
-    @property
-    def str_col(self):
-        return self.str_color
-    @str_col.setter
-    def str_col(self,color:tuple):
-        self.str_color = color
+    def image(self):
+        return self.ima
+    @image.setter
+    def image(self,image:pygame.Surface):
+        self.ima = image
+        self.w = self.ima.get_width()
+        self.h = self.ima.get_height()
+    def set_fire_location(self,location):
+        pass
+    def resize(self,y:int):
+        if(self.x > self.y):
+            self.image = pygame.transform.scale(self.image,
+                                                (y*self.get_health(),y))
+        else:
+            prev = self._placed
+            self._placed = False
+            self.rotate()
+            self.image = pygame.transform.scale(self.image,
+                                                (y*self.get_health(),y))
+            self._placed = prev
+"""Base class for computer ship"""    
+class ComputerShip(Ship):
+    def __init__(self,link,x,y,frame,health):
+        super().__init__(link,x,y,frame,health)
+        self.image = pygame.Surface((self.image.get_width(),
+                                     self.image.get_height()),
+                                    pygame.SRCALPHA)
+    def convert(self):
+        ship = Ship(self.link,self.x,self.y,self.frame,self._health)
+        i = 0
+        while(self._num_rotate > i):
+            ship.rotate()
+        return ship
+    @classmethod
+    def make_computer(cls,ship:Ship):
+        return cls(ship.link,ship.x,ship.y,ship.frame,ship._health)
+    def list_ship(cls,array:list):
+        return_list = []
+        for i in array:
+            return_list.append(ComputerShip.make_computer(i))
+        return return_list
+"""Decorator for ship"""        
+class Ship_on_fire(Ship):
+    def __init__(self,ship:Ship,section:int):
+        self.parent = ship 
+        self.offset_1 = 0
+        self.offset_2 = 0
+        self.fire_size = (35,45)
+        super().__init__(ship.link,ship.x,ship.y,ship.frame,ship._health) 
+        self.base_ship = ship.base_ship
+        self._health_left = (ship.get_health() - 1)
+        self._placed = True
+        self.image = pygame.image.load(path.join("images","fire.png"))
+    def draw(self):
+        self.parent.draw()
+        self.image = pygame.transform.scale(self.image,self.fire_size)
+        self.frame.blit(self.image,(self.x,self.y))
+    def undo(self):
+        return self.parent
+"""Decorator for ship"""    
+class Sink(Ship):
+    def __init__(self,ship:Ship):
+        self.parent = ship
+        super().__init__(ship.link,ship.x,ship.y,ship.frame,ship._health)
+        self.image = ship.base_ship.image
+        canvas = pygame.Surface((self.image.get_width(),
+                                 self.image.get_height()))
+        canvas.fill((224,255,255))
+        canvas.blit(self.image,(0,0))
+        canvas.set_alpha(200)
+        self.image = canvas
+        self._health_left = 0
+        self._placed = True
+    def undo(self):
+        return self.parent
+class BuildShip():
+    @staticmethod
+    def update_ship(ship:Ship,location:int):
+        health = (ship.get_health() - 1)
+        if(health == 0):
+            if(isinstance(ship.base_ship,ComputerShip)):
+                ship.base_ship = ship.base_ship.convert()
+            return Sink(ship)
+        else:
+            return Ship_on_fire(ship,location)
+    @staticmethod
+    def build_user_ship(Width,Height,main_panel,board):
+        link = path.join("images","final-1.png")
+        patrol = Ship(link,int(4.5*Width//7),int(Height//10),main_panel,2)
+        patrol.rotate()
+        patrol.resize(int(board.w/10))  
+        link = path.join("images","final-4.png")
+        destroyer = Ship(link,int(4.5*Width//7),int(2.5*Height//10),main_panel,3)
+        destroyer.rotate()
+        destroyer.resize(int(board.w/10))  
+        link = path.join("images","final-2.png")
+        battle_ship = Ship(link,int(4.5*Width//7),int(4*Height//10),main_panel,5)
+        battle_ship.rotate()
+        battle_ship.resize(int(board.w/10))      
+        link = path.join("images","final-5.png")
+        air_carrier = Ship(link,int(4.5*Width//7),int(5.5*Height//10),main_panel,4)
+        air_carrier.rotate()
+        air_carrier.resize(int(board.w/10))
+        link = path.join("images","final-3.png")
+        sub = Ship(link,int(4.5*Width//7),int(7*Height//10),main_panel,3)
+        sub.rotate()
+        sub.resize(int(board.w/10))
+        return [patrol,destroyer,battle_ship,air_carrier,sub]        
+"""The base class for grid"""
+class Grid(Icon):
+    def __init__(self,x,y,width,height,main_panel):
+        self.link = path.join ("images","final-0.png")
+        self.grid = pygame.image.load(self.link).convert_alpha()
+        super().__init__(x,y,width,height,main_panel)
+        self.grid = pygame.transform.scale(self.grid,(int(self.w),int(self.h)))
+        self.list_ship = []
+        self._mouse_square = (-1,-1)
+        self._one_square = pygame.Surface((int(self.w/10),int(self.h/10)),
+                                          pygame.SRCALPHA)
+        self._one_square.fill((255,255,255,200))
+    def draw(self):
+         self.frame.blit(self.grid,(self.x,self.y))
+         if(self._mouse_square != (-1,-1)):
+             self.frame.blit(self._one_square,
+                             (int(self.x + (self.w/11)*self._mouse_square[0]),
+                              int(self.y + (self.h/11)*self._mouse_square[1])))
+    def mouse_on(self,mouse_pos:tuple):
+        boolean = super().mouse_on(mouse_pos)
+        if(boolean):
+            self._mouse_square = (int((mouse_pos[0] - self.x)/(self.w/11)),
+                                  int((mouse_pos[1] - self.y)/(self.w/11)))
+            return True
+        else:
+            self._mouse_square = (-1,-1)
+            return False
+    def add_boat(self,ship):
+        self.list_ship.append(ship)
+    @abstractmethod
+    def square(self,coor:tuple):
+        pass
+""""""
+class User_Board(Grid):
+    def square(self,coor:tuple):
+        pass
 
+class Computer_Board(Grid):
+    def square(self,coor:tuple):
+        pass
+
+class Event():
+    def __init__(self,icon:Icon):
+        self.icon = icon
+        self.click = False
+        self.key = False
+    @abstractmethod
+    def mouse_hover(self,mouse_pos):
+        pass
+    @abstractmethod
+    def mouse_down(self,mouse_pos):
+        pass
+    @abstractmethod
+    def mouse_up(self,mouse_pos):
+        pass
+    @abstractmethod
+    def key_r(self,mouse_pos):
+        pass
+    
+class Interactive_Ship(Event):
+    def __init__(self,ship:Ship):
+        super().__init__(ship)
+        self.ship = self.icon
+    def mouse_down(self,mouse_pos):
+        if((self.ship.mouse_on(mouse_pos) and not self.click) or self.click):
+            self.ship.x = (mouse_pos[0] - self.ship.w/2)
+            self.ship.y = (mouse_pos[1] - self.ship.h/2)
+            self.click = True
+    def mouse_up(self,mouse_pos,a = None):
+        if(self.ship.mouse_on(mouse_pos)):
+            self.click = False
+    def key_r(self,mouse_pos):
+        if(self.ship.mouse_on(mouse_pos)):
+            self.ship.rotate()
+            
+class Event_Observer():
+    def __init__(self):
+        self._mouse_hover = []
+        self._mouse_down = []
+        self._mouse_up = []
+        self._key_r = []
+        self._draw_list = []
+        
+    @property        
+    def observer_mouse_h(self):
+        return self._mouse_hover
+    @observer_mouse_h.setter
+    def observer_mouse_h(self,event:Event):
+        self._mouse_hover.append(event)    
+    @observer_mouse_h.deleter
+    def observer_mouse_h(self):
+        self._mouse_hover.clear()
+        
+    @property        
+    def observer_mouse_d(self,event:Event):
+        self._mouse_down.append(event)
+    @observer_mouse_d.getter
+    def observer_mouse_d(self):
+        return self._mouse_down
+    @observer_mouse_d.deleter
+    def observer_mouse_d(self):
+        self._mouse_down.clear()
+        
+    @property        
+    def observer_mouse_u(self,event:Event):
+        self._mouse_up.append(event)
+    @observer_mouse_u.getter
+    def observer_mouse_u(self):
+        return self._mouse_up
+    @observer_mouse_u.deleter
+    def observer_mouse_u(self):
+        self._mouse_up.clear()
+        
+    @property        
+    def observer_key_r(self,event:Event):
+        self._key_r.append(event)
+    @observer_key_r.getter
+    def observer_key_r(self):
+        return self._key_r
+    @observer_key_r.deleter
+    def observer_key_r(self):
+        self._key_r.clear()
+        
+    @property
+    def draw_list(self,icon:Icon):
+        self._draw_list.append(icon)
+    @draw_list.getter
+    def draw_list(self):
+        return self._draw_list
+    @draw_list.deleter
+    def draw_list(self):
+        self._draw_list.clear()
+        
+    def notify_mouse_down(self,mouse_pos):
+        for i in self._mouse_down:
+            i.mouse_down(mouse_pos)
+    def notify_mouse_up(self,mouse_pos):
+        for i in self._mouse_up:
+            i.mouse_up(mouse_pos)
+    def notify_mouse_hover(self,mouse_pos):
+        for i in self._mouse_hover:
+            i.mouse_hover(mouse_pos)
+    def notify_key_r(self,mouse_pos):
+        for i in self._key_r:
+            i.key_r(mouse_pos)
+    def draw(self):
+        for i in self._draw_list:
+            i.draw()
+        
         
