@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 Created on Sun Mar 10 18:53:44 2019
 3
@@ -27,8 +27,13 @@ def prefer_size():
         Prefer_Width = int(Screen_Width*0.8)
         Prefer_Height = int(Prefer_Width/16)*9
     return (Prefer_Width,Prefer_Height)
+"""Interface to draw"""
+class Draw():
+    @abstractmethod
+    def draw():
+        pass
 """Base class of object in the game """
-class Icon():
+class Icon(Draw):
     def __init__(self,x:int,y:int,length:int,height:int,frame:pygame.display):
         self.x = x
         self.y = y
@@ -42,9 +47,6 @@ class Icon():
         >=mouse_pos[1]>=self.y ):
             return True
         return False
-    @abstractmethod
-    def draw(self):
-        pass
 """Topping lên Icon"""
 class Decorator(Icon):
     def __init__(self,icon:Icon):
@@ -54,13 +56,13 @@ class Decorator(Icon):
         return self.parent.mouse_on(mouse_pos)       
 """Inherted từ class Icon để base hình chữ nhật"""    
 class Panel(Icon):
-    def __init__(self,x,y,height,length,color:tuple,frame:pygame.display):
+    def __init__(self,x,y,length,height,color:tuple,frame:pygame.display):
         self.color = color
-        super().__init__(x,y,height,length,frame)
+        self.surface = pygame.Surface((length,height),pygame.SRCALPHA)
+        super().__init__(x,y,length,height,frame)
     def draw(self):
-        surface = pygame.Surface((self.w,self.h),pygame.SRCALPHA)
-        surface.fill(self.color)
-        self.frame.blit(surface,(self.x,self.y))  
+        self.surface.fill(self.color)
+        self.frame.blit(self.surface,(self.x,self.y))  
 """Topping text on panel"""        
 class Text(Decorator):
     def __init__(self,text:str,color:tuple,panel:Icon):
@@ -215,24 +217,24 @@ class BuildShip():
             return Ship_on_fire(ship,location)
     @staticmethod
     def build_user_ship(Width,Height,main_panel,board):
-        link = path.join("images","final-1.png")
-        patrol = Ship(link,int(4.5*Width//7),int(Height//10),main_panel,2)
+        link = path.join("images","patrol.png")
+        patrol = Ship(link,int(5*Width//7),int(Height//10),main_panel,2)
         patrol.rotate()
         patrol.resize(int(board.w/10))  
-        link = path.join("images","final-4.png")
-        destroyer = Ship(link,int(4.5*Width//7),int(2.5*Height//10),main_panel,3)
+        link = path.join("images","destroyer.png")
+        destroyer = Ship(link,int(5*Width//7),int(2.5*Height//10),main_panel,3)
         destroyer.rotate()
         destroyer.resize(int(board.w/10))  
-        link = path.join("images","final-2.png")
-        battle_ship = Ship(link,int(4.5*Width//7),int(4*Height//10),main_panel,5)
+        link = path.join("images","battleship.png")
+        battle_ship = Ship(link,int(5*Width//7),int(4*Height//10),main_panel,5)
         battle_ship.rotate()
         battle_ship.resize(int(board.w/10))      
-        link = path.join("images","final-5.png")
-        air_carrier = Ship(link,int(4.5*Width//7),int(5.5*Height//10),main_panel,4)
+        link = path.join("images","carrier.png")
+        air_carrier = Ship(link,int(5*Width//7),int(5.5*Height//10),main_panel,4)
         air_carrier.rotate()
         air_carrier.resize(int(board.w/10))
-        link = path.join("images","final-3.png")
-        sub = Ship(link,int(4.5*Width//7),int(7*Height//10),main_panel,3)
+        link = path.join("images","submarine.png")
+        sub = Ship(link,int(5*Width//7),int(7*Height//10),main_panel,3)
         sub.rotate()
         sub.resize(int(board.w/10))
         return [patrol,destroyer,battle_ship,air_carrier,sub]        
@@ -254,15 +256,6 @@ class Grid(Icon):
              self.frame.blit(self._one_square,
                              (int(self.x + (self.w/11)*self._mouse_square[0]),
                               int(self.y + (self.h/11)*self._mouse_square[1])))
-    def mouse_on(self,mouse_pos:tuple):
-        boolean = super().mouse_on(mouse_pos)
-        if(boolean):
-            self._mouse_square = (int((mouse_pos[0] - self.x)/(self.w/11)),
-                                  int((mouse_pos[1] - self.y)/(self.w/11)))
-            return True
-        else:
-            self._mouse_square = (-1,-1)
-            return False
     def add_boat(self,ship):
         self.list_ship.append(ship)
     @abstractmethod
@@ -277,7 +270,7 @@ class Computer_Board(Grid):
     def square(self,coor:tuple):
         pass
 
-class Event():
+class Event(Draw):
     def __init__(self,icon:Icon):
         self.icon = icon
         self.click = False
@@ -300,75 +293,53 @@ class Interactive_Ship(Event):
         super().__init__(ship)
         self.ship = self.icon
     def mouse_down(self,mouse_pos):
-        if((self.ship.mouse_on(mouse_pos) and not self.click) or self.click):
+        if((self.ship.mouse_on(mouse_pos) and not self.click) 
+        or self.click):
             self.ship.x = (mouse_pos[0] - self.ship.w/2)
             self.ship.y = (mouse_pos[1] - self.ship.h/2)
             self.click = True
-    def mouse_up(self,mouse_pos,a = None):
+    def mouse_up(self,mouse_pos):
         if(self.ship.mouse_on(mouse_pos)):
             self.click = False
+    def mouse_hover(self,mouse_pos):
+        pass
     def key_r(self,mouse_pos):
         if(self.ship.mouse_on(mouse_pos)):
             self.ship.rotate()
             
-class Event_Observer():
+class Interactive_Board(Event):
+    def __init__(self,grid:Grid):
+        super().__init__(grid)
+        self.grid = grid
+        self.first = False
+    def mouse_hover(self,mouse_pos):
+        if(self.grid.mouse_on(mouse_pos)):
+            self.grid._mouse_square =  (int((mouse_pos[0] - 
+                                           self.grid.x)/(self.grid.w/11)),
+                                  int((mouse_pos[1] - 
+                                       self.grid.y)/(self.grid.w/11)))
+        else:
+            self.grid._mouse_square = (-1,-1)
+                           
+class Event_Subject():
     def __init__(self):
         self._mouse_hover = []
         self._mouse_down = []
         self._mouse_up = []
         self._key_r = []
         self._draw_list = []
-        
-    @property        
-    def observer_mouse_h(self):
-        return self._mouse_hover
-    @observer_mouse_h.setter
-    def observer_mouse_h(self,event:Event):
-        self._mouse_hover.append(event)    
-    @observer_mouse_h.deleter
-    def observer_mouse_h(self):
-        self._mouse_hover.clear()
-        
-    @property        
-    def observer_mouse_d(self,event:Event):
-        self._mouse_down.append(event)
-    @observer_mouse_d.getter
-    def observer_mouse_d(self):
-        return self._mouse_down
-    @observer_mouse_d.deleter
-    def observer_mouse_d(self):
-        self._mouse_down.clear()
-        
-    @property        
-    def observer_mouse_u(self,event:Event):
+    """Add subscribers"""        
+    def add_mouse_up(self,event:Event):
         self._mouse_up.append(event)
-    @observer_mouse_u.getter
-    def observer_mouse_u(self):
-        return self._mouse_up
-    @observer_mouse_u.deleter
-    def observer_mouse_u(self):
-        self._mouse_up.clear()
-        
-    @property        
-    def observer_key_r(self,event:Event):
+    def add_mouse_down(self,event:Event):
+        self._mouse_down.append(event)
+    def add_mouse_hover(self,event:Event):
+        self._mouse_hover.append(event)
+    def add_key_r(self,event:Event):
         self._key_r.append(event)
-    @observer_key_r.getter
-    def observer_key_r(self):
-        return self._key_r
-    @observer_key_r.deleter
-    def observer_key_r(self):
-        self._key_r.clear()
-        
-    @property
-    def draw_list(self,icon:Icon):
-        self._draw_list.append(icon)
-    @draw_list.getter
-    def draw_list(self):
-        return self._draw_list
-    @draw_list.deleter
-    def draw_list(self):
-        self._draw_list.clear()
-        
+    def add_draw_list(self,draw:Draw):
+        self._draw_list.append(draw)
+    """Notify subscribers"""
     def notify_mouse_down(self,mouse_pos):
         for i in self._mouse_down:
             i.mouse_down(mouse_pos)
@@ -384,5 +355,10 @@ class Event_Observer():
     def draw(self):
         for i in self._draw_list:
             i.draw()
-        
-        
+    """chuyển cảnh"""
+    def clear_scene(self):
+        self._mouse_up.clear()
+        self._mouse_hover.clear()
+        self._mouse_down.clear()
+        self._key_r.clear()
+        self._draw_list.clear()
