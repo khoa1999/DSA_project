@@ -3,7 +3,7 @@ from copy import deepcopy
 
 
 class BattleshipGame():
-    #Initial boards, ships
+    #Initial boards
     def __init__(self, ships):
         self.userBoard = []
         self.userShips = dict(ships)
@@ -13,6 +13,7 @@ class BattleshipGame():
         for i in range(10):
             self.userBoard.append([' '] * 10)
             self.computerBoard.append([' '] * 10)
+
     def drawBoard(self, hide):
         # Draw boards
         # Aircraft is A, Destroyer is D, Submarine is S, Patrol boat is P, Battleship is B
@@ -95,7 +96,7 @@ class BattleshipGame():
 
         if board[x][y] == ' ':
             if orientation == 'v':
-                if x + size - 1 > 9:
+                if x + size > 9:
                     return False
                 else:
                     for i in range(size):
@@ -105,7 +106,7 @@ class BattleshipGame():
                         board[x + i][y] = ship
                     return True
             elif orientation == 'h':
-                if y + size - 1 > 9:
+                if y + size > 9:
                     return False
                 else:
                     for i in range(size):
@@ -365,8 +366,8 @@ def main():
     targetStack = []
     computerTargeting = False
     playing = True
-    fleetDictionary = {'Aircraft Carrier': 5,
-                       'Battleship': 4,
+    fleetDictionary = {'Aircraft Carrier': 4,
+                       'Battleship': 5,
                        'Submarine': 3,
                        'Destroyer': 3,
                        'Patrol Boat': 2}
@@ -407,4 +408,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

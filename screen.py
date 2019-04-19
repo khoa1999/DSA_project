@@ -4,34 +4,43 @@ Created on Sun Mar 10 18:53:44 2019
 3
 @author: Đăng Khoa
 """
-
-import tkinter as tk
 import pygame
 from abc import ABC,abstractmethod
 from os import path
-""" tìm độ phân giải của màn hình """
-def get_screen_info():
-    root = tk.Tk()
-    Screen_Width = root.winfo_screenwidth()
-    Screen_Height = root.winfo_screenheight()
-    root.destroy()
-    return (Screen_Width,Screen_Height)
-"""setup độ phân giải tối ưu cho từng máy"""
-def prefer_size():
-    Screen_Width,Screen_Height = get_screen_info()
-    aspect_ratio = Screen_Width/Screen_Height
-    if(aspect_ratio >= 1.778):
-        Prefer_Height = int(Screen_Height*0.8)
-        Prefer_Width = int(Prefer_Height/9)*16      
-    else:
-        Prefer_Width = int(Screen_Width*0.8)
-        Prefer_Height = int(Prefer_Width/16)*9
-    return (Prefer_Width,Prefer_Height)
+from numpy.random import randint
 """Interface to draw"""
 class Draw():
     @abstractmethod
     def draw():
         pass
+"""Class to draw a pygame surface"""
+class JustDraw(Draw):
+    def __init__(self,surface:pygame.Surface,display:pygame.display,x:int,y:int):
+        self.surface = surface
+        self.frame = display
+        self.x = x
+        self.y = y
+    def draw(self):
+        self.frame.blit(self.surface,(self.x,self.y))
+"""Intro back ground"""
+class Intro(Draw):
+    def __init__(self,frame:pygame.display,width:int,height:int):
+        self.tick = 0
+        self.frame = frame
+        self.curr = randint(4)
+        self.current_ima = None
+        self.size = (width,height)
+    def draw(self):
+        self.tick = self.tick%200
+        if(self.tick == 0):
+            self.curr += 1
+            self.curr = self.curr%5
+            link = path.join("images","intro_{:d}.jpg".format(self.curr))
+            self.current_ima = pygame.image.load(link)
+            self.current_ima = pygame.transform.scale(
+                self.current_ima.convert_alpha(),self.size)
+        self.frame.blit(self.current_ima,(0,0))
+        self.tick += 1
 """Base class of object in the game """
 class Icon(Draw):
     def __init__(self,x:int,y:int,length:int,height:int,frame:pygame.display):
@@ -150,8 +159,10 @@ class Ship(Icon):
             self.image = pygame.transform.scale(self.image,
                                                 (y*self.get_health(),y))
             self._placed = prev
+    def is_fixed(self):
+        return self._placed
 """Base class for computer ship"""    
-class ComputerShip(Ship):
+class Computer_ship(Ship):
     def __init__(self,link,x,y,frame,health):
         super().__init__(link,x,y,frame,health)
         self.image = pygame.Surface((self.image.get_width(),
@@ -169,7 +180,7 @@ class ComputerShip(Ship):
     def list_ship(cls,array:list):
         return_list = []
         for i in array:
-            return_list.append(ComputerShip.make_computer(i))
+            return_list.append(Computer_ship.make_computer(i))
         return return_list
 """Decorator for ship"""        
 class Ship_on_fire(Ship):
@@ -210,7 +221,7 @@ class BuildShip():
     def update_ship(ship:Ship,location:int):
         health = (ship.get_health() - 1)
         if(health == 0):
-            if(isinstance(ship.base_ship,ComputerShip)):
+            if(isinstance(ship.base_ship,Computer_ship)):
                 ship.base_ship = ship.base_ship.convert()
             return Sink(ship)
         else:
@@ -220,23 +231,23 @@ class BuildShip():
         link = path.join("images","patrol.png")
         patrol = Ship(link,int(5*Width//7),int(Height//10),main_panel,2)
         patrol.rotate()
-        patrol.resize(int(board.w/10))  
+        patrol.resize(int(0.92*board.w/10))  
         link = path.join("images","destroyer.png")
         destroyer = Ship(link,int(5*Width//7),int(2.5*Height//10),main_panel,3)
         destroyer.rotate()
-        destroyer.resize(int(board.w/10))  
+        destroyer.resize(int(0.92*board.w/10))  
         link = path.join("images","battleship.png")
         battle_ship = Ship(link,int(5*Width//7),int(4*Height//10),main_panel,5)
         battle_ship.rotate()
-        battle_ship.resize(int(board.w/10))      
+        battle_ship.resize(int(0.92*board.w/10))      
         link = path.join("images","carrier.png")
         air_carrier = Ship(link,int(5*Width//7),int(5.5*Height//10),main_panel,4)
         air_carrier.rotate()
-        air_carrier.resize(int(board.w/10))
+        air_carrier.resize(int(0.92*board.w/10))
         link = path.join("images","submarine.png")
         sub = Ship(link,int(5*Width//7),int(7*Height//10),main_panel,3)
         sub.rotate()
-        sub.resize(int(board.w/10))
+        sub.resize(int(0.92*board.w/10))
         return [patrol,destroyer,battle_ship,air_carrier,sub]        
 """The base class for grid"""
 class Grid(Icon):
@@ -261,15 +272,7 @@ class Grid(Icon):
     @abstractmethod
     def square(self,coor:tuple):
         pass
-""""""
-class User_Board(Grid):
-    def square(self,coor:tuple):
-        pass
-
-class Computer_Board(Grid):
-    def square(self,coor:tuple):
-        pass
-
+"""Event handling"""
 class Event(Draw):
     def __init__(self,icon:Icon):
         self.icon = icon
@@ -289,24 +292,48 @@ class Event(Draw):
         pass
     
 class Interactive_Ship(Event):
+    to_move = None
     def __init__(self,ship:Ship):
+        self.hover = False
+        panel = Panel(0,0,int(ship.h*3),int(ship.h/1.6),
+                      (255,255,255),ship.frame)
+        self.text_field = Text("",(0,0,0),panel)
         super().__init__(ship)
         self.ship = self.icon
     def mouse_down(self,mouse_pos):
-        if((self.ship.mouse_on(mouse_pos) and not self.click) 
-        or self.click):
+        if(((self.ship.mouse_on(mouse_pos) and not self.click) 
+        or self.click) and (Interactive_Ship.to_move == None 
+                     or Interactive_Ship.to_move == self)):
             self.ship.x = (mouse_pos[0] - self.ship.w/2)
             self.ship.y = (mouse_pos[1] - self.ship.h/2)
             self.click = True
+            Interactive_Ship.to_move = self
+        self.hover = False
     def mouse_up(self,mouse_pos):
         if(self.ship.mouse_on(mouse_pos)):
             self.click = False
+        self.hover = False
+        Interactive_Ship.to_move = None
     def mouse_hover(self,mouse_pos):
-        pass
+        if(self.ship.mouse_on(mouse_pos)):
+            self.hover = True
+        else:
+            self.hover = False
     def key_r(self,mouse_pos):
         if(self.ship.mouse_on(mouse_pos)):
             self.ship.rotate()
-            
+    def draw(self):
+        self.ship.draw()
+        if(self.hover):
+            self.text_field.parent.x = self.ship.x + self.ship.w//2
+            self.text_field.parent.y = self.ship.y + self.ship.h//2
+            self.text_field.x = self.ship.x + self.ship.w//2
+            self.text_field.y = self.ship.y + self.ship.h//2            
+            if(not self.ship.is_fixed()):
+                self.text_field.text = "Press R to rotate"
+            else:
+                self.text_field.text = "Health left {:d}".format(self.ship.get_health())
+            self.text_field.draw()
 class Interactive_Board(Event):
     def __init__(self,grid:Grid):
         super().__init__(grid)
@@ -318,7 +345,9 @@ class Interactive_Board(Event):
                                            self.grid.x)/(self.grid.w/11)),
                                   int((mouse_pos[1] - 
                                        self.grid.y)/(self.grid.w/11)))
-        else:
+        if(self.grid._mouse_square[0] == 11 or 
+           self.grid._mouse_square[1] == 11 or not 
+           self.grid.mouse_on(mouse_pos)):
             self.grid._mouse_square = (-1,-1)
                            
 class Event_Subject():
