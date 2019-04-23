@@ -4,137 +4,193 @@ Created on Sun Mar 10 19:20:12 2019
 
 @author: Đăng Khoa
 """
-
+from os import path
+import pygame
 from screen import *
 from config_game import get_prefer_size
-import pygame
-from os import path
 import DSA_battleship
 
-def run_game():
-    global FPS,Width,Height,main_panel
-    """bắt đầu game"""
-    pygame.init()    
-    main_panel = pygame.display.set_mode((Width,Height))
-    
-    link_bg = path.join("images","intro_0.jpg") 
-    bg = pygame.image.load(link_bg).convert_alpha() 
-    bg = pygame.transform.scale(bg,(Width,Height))
-    background = JustDraw(bg,main_panel,0,0)
-    
-    link_music = path.join("audios","bg_audio.wav")
-    
-    intro_bg = Intro(main_panel,Width,Height)
-    
-    link_logo = path.join("images","logo.png")
-    logo = pygame.image.load(link_logo).convert_alpha() 
-    size = (int(Height/3.5)*4,int(Height/3.5))#để đảm bảo truy cập đc file
-    logo = pygame.transform.scale(logo,size)#nhất là trên MAC CỦA NGỌC :)0
-    lg = JustDraw(logo,main_panel,int(Width/2 - size[0]/2),0)
-    
-    pygame.mixer.music.load(link_music)
-    pygame.mixer.music.play(-1)#nhạc sẽ chạy liên tục
-    
-    light = (255,48,48)
-    length = int(Width//5)
-    height = int(Height//9)  
-    pygame.display.update()
-    pygame.display.set_caption("Battleship")
-    fps_clock = pygame.time.Clock()
-    start = Panel(Width//2 - length//2,int(5*Height/6),
-                  length,height,light,main_panel)
-    button = Text("START",(255,193,193),start)
-    intro = True
-    run_game = True    
-    """intro game loop"""
-    while(intro):
-        fps_clock.tick(FPS)
-        mouse_pos = pygame.mouse.get_pos()
-        intro_bg.draw()
-        lg.draw()
-        button.draw() 
-        mouse_on = button.mouse_on(mouse_pos)
-        pygame.display.update()
-        for event in  pygame.event.get():
-            if event.type == pygame.QUIT:
-                intro = False
-                run_game = False                
-                pygame.quit()
-                quit()
-            elif mouse_on:# làm đổi màu chữ vài các nút bấm
-                start.color = (255,64,64)
-                button.color = (255,255,255)
-            elif not mouse_on:
-                start.color = light
-                button.color = (255,193,193) 
-            if event.type == pygame.MOUSEBUTTONUP and mouse_on == True:
-                intro = False
-                pygame.mixer.music.stop()
-                link_music = path.join("audios","Battleship.ogg")
-                pygame.mixer.music.load(link_music)
-                pygame.mixer.music.play(-1)
-          
-    link_bg = path.join("images","ocean7.jpg")
-    bg = pygame.image.load(link_bg).convert_alpha()
-    bg = pygame.transform.scale(bg,(Width,Height))
-    background = JustDraw(bg,main_panel,0,0)
-            
-    half = Panel(int(2*Width/3),0,int(Width/3),Height,(0,0,0,75),main_panel)
-    e1 = Panel(0,0,int(Width/21),int(Width/21),
-               (255,250,250),main_panel)#draw undo test
-    ima = Image("Undo.png",e1)#draw undo test
-    board_1 = Grid(int(Width/16),int(Height/8),
-                int(Width/2.2),int(Width/2.2),main_panel) 
-    """Bắt đầu import tàu vào game và event cho tàu"""
-    subject = Event_Subject()
-    list_ship = BuildShip.build_user_ship(Width,Height,main_panel,board_1)
-    board = Interactive_Board(board_1)
-    subject.add_mouse_hover(board)
-    subject.add_mouse_up(board)
-    subject.add_draw_list(background)
-    subject.add_draw_list(board_1)    
-    subject.add_draw_list(half)
-    for i in list_ship:
-        k = Interactive_Ship(i)
-        subject.add_key_r(k)
-        subject.add_mouse_up(k)
-        subject.add_mouse_down(k)
-        subject.add_mouse_hover(k)
-        subject.add_draw_list(k)
-        board_1.add_boat(i)
-        
-    clicked = False
-    while(run_game):
-        fps_clock.tick(FPS)
-        subject.draw()
-        pygame.display.update()
-        mouse_pos = pygame.mouse.get_pos()
-        for event in  pygame.event.get():
-            keys = pygame.key.get_pressed()
-            if event.type == pygame.QUIT:
-                run_game = False
-                pygame.quit()
-                quit()
-            """Dành cho event nhấn chuột xuống và thả chuột"""
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                clicked = True
-            if event.type == pygame.MOUSEBUTTONUP:
-                subject.notify_mouse_up(mouse_pos)                 
-                clicked = False
-            """dùng cho cac phím"""
-            if keys[pygame.K_r]: 
-                subject.notify_key_r(mouse_pos)    
-        if(clicked):
-            subject.notify_mouse_down(mouse_pos)
-        else:
-            subject.notify_mouse_hover(mouse_pos)
-if __name__ == "__main__":
-    """constant"""
-    FPS = 60
-    Width,Height = get_prefer_size()
+class Hu():
+    subject = None
+    bg = None
     main_panel = None
+    enemies = []
+    users = []
+    states = {}
+    fps_clock = None
+    size = None
+    grid_player = None
+    grid_sys = None
+    to_change_state = False
+    width = 0
+    height = 0
+    fps = 60
+    ship_location = []
+    @staticmethod
+    def run_game():
+        Hu.load()
+        run_game = True
+        clicked = False
+        while(run_game):
+            Hu.fps_clock.tick(Hu.fps)
+            Hu.subject.draw()
+            pygame.display.update()
+            mouse_pos = pygame.mouse.get_pos()
+            for event in  pygame.event.get():
+                keys = pygame.key.get_pressed()
+                if event.type == pygame.QUIT:
+                    run_game = False
+                    pygame.quit()
+                    quit()
+                """Dành cho event nhấn chuột xuống và thả chuột"""
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    clicked = True
+                if event.type == pygame.MOUSEBUTTONUP:
+                    Hu.subject.notify_mouse_up(mouse_pos)                 
+                    clicked = False
+                """dùng cho cac phím"""
+                if keys[pygame.K_r]: 
+                    Hu.subject.notify_key_r(mouse_pos)    
+            if(clicked):
+                Hu.subject.notify_mouse_down(mouse_pos)
+            else:
+                Hu.subject.notify_mouse_hover(mouse_pos)
+            if(Hu.to_change_state):
+                Hu.to_change_state = False
+                Hu.subject = Hu.subject.change_state()
+                Hu.subject.enter_state()
+    @staticmethod
+    def load():
+        Hu.size = get_prefer_size()
+        Hu.width = Hu.size[0]
+        Hu.height = Hu.size[1]
+        pygame.init()        
+        Hu.main_panel = pygame.display.set_mode(Hu.size)
+        pygame.display.set_caption("Battleship")
+        Hu.subject = Intro_State()
+        Hu.subject.set_next(Place_Ship())
+        Hu.subject.enter_state()
+        Hu.fps_clock = pygame.time.Clock()
+            
+class Abstract_State(Event_Subject):
+    def __init__(self,key:str):
+        self.key = key
+        Hu.states[self.key] = self
+        self.has_data = False
+        self._next = None
+        super().__init__()
+    def enter_state(self):
+        if(not self.has_data):
+            self._build_data()
+            self.has_data = True
+    @abstractmethod
+    def _build_data(self):
+        pass
+    def set_next(self,state):
+        self._next = state
+    def change_state(self):
+        if(self._next != None):
+            return self._next
+        else:
+            return self
+        
+class Intro_State(Abstract_State):
+    def __init__(self):
+        super().__init__("intro")
+    def _build_data(self):
+        intro_bg = Intro(Hu.main_panel,Hu.width,Hu.height)
+        link_logo = path.join("images","logo.png")
+        logo = pygame.image.load(link_logo).convert_alpha()
+        size = (int(Hu.height/3.5)*4,int(Hu.height/3.5))#để đảm bảo truy cập đc file
+        logo = pygame.transform.scale(logo,size)#nhất là trên MAC CỦA NGỌC :)0
+        lg = JustDraw(logo,Hu.main_panel,int(Hu.width/2 - size[0]/2),0)
+        
+        length = int(Hu.width//5)
+        height = int(Hu.height//9) 
+        start = Button.create_text_button(Hu.width//2 - length//2,
+                    int(5*Hu.height/6),length,height,'START',(255,48,48),
+                    (255,193,193),Hu.main_panel)
+        start.set_listener(Start_Listener(start))
+        self._mouse_hover.append(start)
+        self._mouse_up.append(start)
+        self._draw_list = [intro_bg,lg,start]
+
+class Place_Ship(Abstract_State):
+    def __init__(self):
+        super().__init__('place')
+    def _build_data(self):
+        link_bg = path.join("images","ocean7.jpg")
+        bg = pygame.image.load(link_bg).convert_alpha()
+        bg = pygame.transform.scale(bg,Hu.size)
+        background = JustDraw(bg,Hu.main_panel,0,0)
+        half = Panel(int(2*Hu.width/3),0,int(Hu.width/3),
+                         Hu.height,(0,0,0,75),Hu.main_panel)
+        board_1 = Grid(int(Hu.width/16),int(Hu.height/8),
+                int(Hu.width/2.2),int(Hu.width/2.2),Hu.main_panel)
+        """Bắt đầu import tàu vào game và event cho tàu"""
+        list_ship = BuildShip.build_user_ship(Hu.width,Hu.height,
+                                              board_1,Hu.main_panel)
+        board = Interactive_Board(board_1)
+        self.add_mouse_hover(board)
+        self.add_mouse_up(board)
+        self.add_draw_list(background)
+        self.add_draw_list(board)    
+        self.add_draw_list(half)
+        Hu.grid_player = board
+        button = Button.create_image_button(int(7*Hu.width/8),int(6*Hu.height/7),
+                                            Hu.width//21,Hu.width//21,
+                                            (255,255,255),"Undo.png",
+                                            Hu.main_panel)
+        button.set_listener(Undo_Listener())
+        self.add_draw_list(button)
+        self.add_mouse_up(button)
+        for i in list_ship:
+            k = Interactive_Ship(i)
+            self.add_key_r(k)
+            self.add_mouse_up(k)
+            self.add_mouse_down(k)
+            self.add_mouse_hover(k)
+            self.add_draw_list(k)
+            board_1.add_boat(i)
+            Hu.users.append(k)
+            Hu.ship_location.append((i.x,i.y))
+    def enter_state(self):
+        super().enter_state()
+        Hu.states.pop("intro")#t ko cầnintro nữa nên để gc giải quyết
+"""t dùng listener 1 lần thôi nên cho thẳng giá trị vô luôn nếu như vậy thì 
+java có thể sử dụng anouysmous class bên python lambda expression(anouysmous 
+function) lý do t chọn class bên python vì nó dễ hiểu cho bà hơn"""
+class Start_Listener(Listener):
+    def __init__(self,button:Button):
+        self.button = button
+        self.colors = [(255,255,255),(255,64,64),(255,193,193),(255,48,48)]
+    def mouse_up_listener(self):
+        Hu.to_change_state = True
+    def mouse_hover_listener(self):
+        self.button.icon.color = self.colors[0]
+        self.button.icon.parent.color = self.colors[1]
+    def not_mouse_on_listener(self):
+        self.button.icon.color = self.colors[2]
+        self.button.icon.parent.color = self.colors[3]
+        
+class Undo_Listener(Listener):
+    """zip như java iterator nhưng khi bà iter 1 list hay dict 
+    thì ko cần zip, zip có thể qua 2 hoặc nhiều list cùng 1 lúc 
+    kết hợp với unpack tuple cho rút ngấn code và tối ưu hơn(nếu ko tính
+    dòng comment này)"""    
+    def mouse_up_listener(self):
+        for i,v in zip(Hu.users,Hu.ship_location):
+            i.ship.x,i.ship.y = v
+        for i in Hu.users:
+            for j in range(5 - i.ship._num_rotate%4):
+                i.ship.rotate()
+class State_To_State_Listener(Listener):
+    def mouse_up_listener(self):
+        Hu.to_change_state = True            
+if __name__ == "__main__":
     """function"""
-    run_game()
+    Hu.run_game()
+    
 
 
 

@@ -4,14 +4,15 @@ Created on Sun Mar 10 18:53:44 2019
 3
 @author: Đăng Khoa
 """
-import pygame
 from abc import ABC,abstractmethod
 from os import path
 from numpy.random import randint
+import pygame
+
 """Interface to draw"""
 class Draw():
     @abstractmethod
-    def draw():
+    def draw(self):
         pass
 """Class to draw a pygame surface"""
 class JustDraw(Draw):
@@ -43,7 +44,8 @@ class Intro(Draw):
         self.tick += 1
 """Base class of object in the game """
 class Icon(Draw):
-    def __init__(self,x:int,y:int,length:int,height:int,frame:pygame.display):
+    def __init__(self,x:int,y:int,length:int,height:int,
+                 frame:pygame.display):
         self.x = x
         self.y = y
         self.w = length
@@ -65,7 +67,8 @@ class Decorator(Icon):
         return self.parent.mouse_on(mouse_pos)       
 """Inherted từ class Icon để base hình chữ nhật"""    
 class Panel(Icon):
-    def __init__(self,x,y,length,height,color:tuple,frame:pygame.display):
+    def __init__(self,x,y,length,height,color:tuple,
+                 frame:pygame.display):
         self.color = color
         self.surface = pygame.Surface((length,height),pygame.SRCALPHA)
         super().__init__(x,y,length,height,frame)
@@ -96,7 +99,7 @@ class Image(Decorator):
         self.frame.blit(self.image,(self.x,self.y))
 """Ship base class"""      
 class Ship(Icon):
-    def __init__(self,link,x,y,frame,health):
+    def __init__(self,link,x,y,health,frame:pygame.display):
         self.link = link
         self.ima = pygame.image.load(link).convert_alpha()
         w,h = self.image.get_size()
@@ -163,8 +166,8 @@ class Ship(Icon):
         return self._placed
 """Base class for computer ship"""    
 class Computer_ship(Ship):
-    def __init__(self,link,x,y,frame,health):
-        super().__init__(link,x,y,frame,health)
+    def __init__(self,link,x,y,health:int,frame:pygame.display):
+        super().__init__(link,x,y,health,frame)
         self.image = pygame.Surface((self.image.get_width(),
                                      self.image.get_height()),
                                     pygame.SRCALPHA)
@@ -176,7 +179,7 @@ class Computer_ship(Ship):
         return ship
     @classmethod
     def make_computer(cls,ship:Ship):
-        return cls(ship.link,ship.x,ship.y,ship.frame,ship._health)
+        return cls(ship.link,ship.x,ship.y,ship._health,ship.frame)
     def list_ship(cls,array:list):
         return_list = []
         for i in array:
@@ -189,7 +192,7 @@ class Ship_on_fire(Ship):
         self.offset_1 = 0
         self.offset_2 = 0
         self.fire_size = (35,45)
-        super().__init__(ship.link,ship.x,ship.y,ship.frame,ship._health) 
+        super().__init__(ship.link,ship.x,ship.y,ship._health,ship.frame) 
         self.base_ship = ship.base_ship
         self._health_left = (ship.get_health() - 1)
         self._placed = True
@@ -204,7 +207,7 @@ class Ship_on_fire(Ship):
 class Sink(Ship):
     def __init__(self,ship:Ship):
         self.parent = ship
-        super().__init__(ship.link,ship.x,ship.y,ship.frame,ship._health)
+        super().__init__(ship.link,ship.x,ship.y,ship._health,ship.frame)
         self.image = ship.base_ship.image
         canvas = pygame.Surface((self.image.get_width(),
                                  self.image.get_height()))
@@ -216,6 +219,28 @@ class Sink(Ship):
         self._placed = True
     def undo(self):
         return self.parent
+"""The base class for grid"""
+class Grid(Icon):
+    def __init__(self,x:int,y:int,width:int,height:int,main_panel:pygame.display):
+        self.link = path.join ("images","final-0.png")
+        self.grid = pygame.image.load(self.link).convert_alpha()
+        super().__init__(x,y,width,height,main_panel)
+        self.grid = pygame.transform.scale(self.grid,(int(self.w),int(self.h)))
+        self.list_ship = []
+        self._mouse_square = (-1,-1)
+        self._one_square = pygame.Surface((int(self.w/10),int(self.h/10)),
+                                          pygame.SRCALPHA)
+        self._one_square.fill((255,255,255,200))
+    def draw(self):
+        self.frame.blit(self.grid,(self.x,self.y))
+        if(self._mouse_square != (-1,-1)):
+        	self.frame.blit(self._one_square,(int(self.x + (self.w/11)*self._mouse_square[0]),
+                              int(self.y + (self.h/11)*self._mouse_square[1])))
+    def add_boat(self,ship):
+        self.list_ship.append(ship)
+    @abstractmethod
+    def square(self,coor:tuple):
+        pass    
 class BuildShip():
     @staticmethod
     def update_ship(ship:Ship,location:int):
@@ -227,51 +252,30 @@ class BuildShip():
         else:
             return Ship_on_fire(ship,location)
     @staticmethod
-    def build_user_ship(Width,Height,main_panel,board):
+    def build_user_ship(Width,Height,board:Grid,
+                        main_panel:pygame.display):
+        magic_num = 0.92
         link = path.join("images","patrol.png")
-        patrol = Ship(link,int(5*Width//7),int(Height//10),main_panel,2)
+        patrol = Ship(link,int(5*Width//7),int(Height//10),2,main_panel)
         patrol.rotate()
-        patrol.resize(int(0.92*board.w/10))  
+        patrol.resize(int(magic_num*board.w/10))  
         link = path.join("images","destroyer.png")
-        destroyer = Ship(link,int(5*Width//7),int(2.5*Height//10),main_panel,3)
+        destroyer = Ship(link,int(5*Width//7),int(2.5*Height//10),3,main_panel)
         destroyer.rotate()
-        destroyer.resize(int(0.92*board.w/10))  
+        destroyer.resize(int(magic_num*board.w/10))  
         link = path.join("images","battleship.png")
-        battle_ship = Ship(link,int(5*Width//7),int(4*Height//10),main_panel,5)
+        battle_ship = Ship(link,int(5*Width//7),int(4*Height//10),5,main_panel)
         battle_ship.rotate()
-        battle_ship.resize(int(0.92*board.w/10))      
+        battle_ship.resize(int(magic_num*board.w/10))      
         link = path.join("images","carrier.png")
-        air_carrier = Ship(link,int(5*Width//7),int(5.5*Height//10),main_panel,4)
+        air_carrier = Ship(link,int(5*Width//7),int(5.5*Height//10),4,main_panel)
         air_carrier.rotate()
-        air_carrier.resize(int(0.92*board.w/10))
+        air_carrier.resize(int(magic_num*board.w/10))
         link = path.join("images","submarine.png")
-        sub = Ship(link,int(5*Width//7),int(7*Height//10),main_panel,3)
+        sub = Ship(link,int(5*Width//7),int(7*Height//10),3,main_panel)
         sub.rotate()
-        sub.resize(int(0.92*board.w/10))
+        sub.resize(int(magic_num*board.w/10))
         return [patrol,destroyer,battle_ship,air_carrier,sub]        
-"""The base class for grid"""
-class Grid(Icon):
-    def __init__(self,x,y,width,height,main_panel):
-        self.link = path.join ("images","final-0.png")
-        self.grid = pygame.image.load(self.link).convert_alpha()
-        super().__init__(x,y,width,height,main_panel)
-        self.grid = pygame.transform.scale(self.grid,(int(self.w),int(self.h)))
-        self.list_ship = []
-        self._mouse_square = (-1,-1)
-        self._one_square = pygame.Surface((int(self.w/10),int(self.h/10)),
-                                          pygame.SRCALPHA)
-        self._one_square.fill((255,255,255,200))
-    def draw(self):
-         self.frame.blit(self.grid,(self.x,self.y))
-         if(self._mouse_square != (-1,-1)):
-             self.frame.blit(self._one_square,
-                             (int(self.x + (self.w/11)*self._mouse_square[0]),
-                              int(self.y + (self.h/11)*self._mouse_square[1])))
-    def add_boat(self,ship):
-        self.list_ship.append(ship)
-    @abstractmethod
-    def square(self,coor:tuple):
-        pass
 """Event handling"""
 class Event(Draw):
     def __init__(self,icon:Icon):
@@ -349,7 +353,70 @@ class Interactive_Board(Event):
            self.grid._mouse_square[1] == 11 or not 
            self.grid.mouse_on(mouse_pos)):
             self.grid._mouse_square = (-1,-1)
-                           
+    def draw(self):
+        self.grid.draw()
+"""Interface for Listener giống java swing và t ko phải vì t rảnh mà t cần
+gọi controller và muốn giữ draw object lại ở screen bà thử import main vào 
+screen và chạy main thử"""
+class Listener():
+    @abstractmethod
+    def mouse_up_listener(self):
+        pass
+    @abstractmethod
+    def mouse_down_listener(self):
+        pass
+    @abstractmethod
+    def mouse_hover_listener(self):
+        pass
+    @abstractmethod
+    def not_mouse_on_listener(self):
+        pass#có lý do cho thằng này tồn tại
+    @abstractmethod
+    def key_r_listner(self):
+        pass
+"""Base class cho button vì class cho sự linh hoạt"""        
+class Button(Event):
+    def __init__(self,base:Decorator): #lý do m cần overwrite constructor
+        super().__init__(base) #làm vì Decorator là subclass của Icon
+    def set_listener(self,listener:Listener):
+        self.listener = listener
+    def mouse_hover(self,mouse_pos:tuple):
+        try:
+            if(self.icon.mouse_on(mouse_pos)):
+                self.listener.mouse_hover_listener()
+            else:
+                self.listener.not_mouse_on_listener()
+        except:
+            print("Nhớ tạo listener")
+    def mouse_down(self,mouse_pos:tuple):
+        if(self.icon.mouse_on(mouse_pos)):
+            try:
+                self.listener.mouse_down_listener()
+            except:
+                print("Nhớ tạo listener")        
+    def mouse_up(self,mouse_pos:tuple):
+        if(self.icon.mouse_on(mouse_pos)):
+            try:
+                self.listener.mouse_up_listener()
+            except:
+                print("Nhớ tạo listener")         
+    def draw(self):
+        self.icon.draw()
+    """classmethod là đặt trưng python cái t muốn đơn giản là overloading 
+    contructorn bà code Button.method(arg1,arg2,..) vậy thôi"""
+    @classmethod
+    def create_text_button(cls,x:int,y:int,length:int,height:int,text:str,
+                         color_bg:tuple,color_txt:tuple,frame:pygame.display):
+        p = Panel(x,y,length,height,color_bg,frame)
+        text = Text(text,color_txt,p)
+        return cls(text)
+    @classmethod
+    def create_image_button(cls,x:int,y:int,length:int,height:int,color:tuple,
+                            link:str,frame:pygame.display):
+        p = Panel(x,y,length,height,color,frame)
+        i = Image(link,p)
+        return cls(i)
+        
 class Event_Subject():
     def __init__(self):
         self._mouse_hover = []
@@ -390,4 +457,4 @@ class Event_Subject():
         self._mouse_hover.clear()
         self._mouse_down.clear()
         self._key_r.clear()
-        self._draw_list.clear()
+        self._draw_list.clear()    
