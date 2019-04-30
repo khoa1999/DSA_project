@@ -4,6 +4,7 @@ Created on Sun Mar 10 18:53:44 2019
 3
 @author: Đăng Khoa
 """
+import time
 from abc import ABC,abstractmethod
 from os import path
 from numpy.random import randint
@@ -32,7 +33,7 @@ class Intro(Draw):
         self.current_ima = None
         self.size = (width,height)
     def draw(self):
-        self.tick = self.tick%200
+        self.tick = self.tick%170
         if(self.tick == 0):
             self.curr += 1
             self.curr = self.curr%5
@@ -81,13 +82,15 @@ class Text(Decorator):
         super().__init__(panel)
         self.color = color
         self.text = text
+        self.font =  pygame.font.Font(None,50)
     def draw(self):
-        font = pygame.font.Font(None,1000)
-        text = font.render(self.text,True,self.color)
+        text = self.font.render(self.text,True,self.color)
         self.parent.draw()
         text = pygame.transform.scale(text,(int(0.8*self.w),int(0.8*self.h)))
         self.frame.blit(text,(int(self.x + 0.1*self.w),
-                              int(self.y + 0.1*self.h)))  
+                              int(self.y + 0.1*self.h))) 
+    def set_font(self,font:str):
+        self.font = pygame.font.Font(font,1000)
 """Topping image on panel"""
 class Image(Decorator):
     def __init__(self,link:str,panel:Icon):
@@ -238,9 +241,15 @@ class Grid(Icon):
                               int(self.y + (self.h/11)*self._mouse_square[1])))
     def add_boat(self,ship):
         self.list_ship.append(ship)
-    @abstractmethod
-    def square(self,coor:tuple):
-        pass    
+    def snap(self):
+        for i in self.list_ship:
+            if((self.x <= i.x <= self.x + self.w) and 
+               (self.y <= i.y <= self.y + self.h)):
+                i.x = int((i.x - self.x)/(self.w//11))*(self.w//11) + self.x
+                i.y = int((i.y - self.y)/(self.h//11))*(self.h//11) + self.y
+            i.fixed()
+    def ready(self):
+        return False
 class BuildShip():
     @staticmethod
     def update_ship(ship:Ship,location:int):
@@ -254,7 +263,7 @@ class BuildShip():
     @staticmethod
     def build_user_ship(Width,Height,board:Grid,
                         main_panel:pygame.display):
-        magic_num = 0.92
+        magic_num = 0.95
         link = path.join("images","patrol.png")
         patrol = Ship(link,int(5*Width//7),int(Height//10),2,main_panel)
         patrol.rotate()
@@ -403,7 +412,7 @@ class Button(Event):
     def draw(self):
         self.icon.draw()
     """classmethod là đặt trưng python cái t muốn đơn giản là overloading 
-    contructorn bà code Button.method(arg1,arg2,..) vậy thôi"""
+    contructor bà code Button.method(arg1,arg2,..) vậy thôi"""
     @classmethod
     def create_text_button(cls,x:int,y:int,length:int,height:int,text:str,
                          color_bg:tuple,color_txt:tuple,frame:pygame.display):
@@ -416,7 +425,56 @@ class Button(Event):
         p = Panel(x,y,length,height,color,frame)
         i = Image(link,p)
         return cls(i)
+"""Hiện thị thông tin trong chuyện gì đang xảy ra trong game"""
+class Info(Draw):
+    def __init__(self,x:int,y:int,w:int,h:int,frame:pygame.display):
+        self.base_panel = Panel(x,y,w,h,(0,0,0),frame)
+        self.text = ["",""]
+        self.font = pygame.font.Font(None,50)
+        self.frame = frame
+        self.color = (0,205,0)
+    def draw(self):
+        self.base_panel.draw()
+        for i,v in zip(self.text,(0,1)):
+            text = self.font.render(i,True,self.color)
+            ratio = (self.base_panel.h/text.get_height())
+            text = pygame.transform.scale(text,(int(ratio*0.7*text.get_width())//2,
+                                            int(0.7*ratio*text.get_height())//2))
+            self.frame.blit(text,(self.base_panel.w//2 + self.base_panel.x - 
+                              text.get_width()//2
+                ,int(self.base_panel.y + (v/2 + 0.15)*self.base_panel.h)))
         
+    def set_text(self,text:str):
+        self.text.append(text)
+        self.text.pop(0)
+"""Count Down class"""
+class Count_Down(Draw):
+    def __init__(self,width:int,height:int,frame:pygame.display):
+        self.duration = 4
+        self.paused = False
+        self.time_left = 4
+        self.curr_index = 3 #dùng để tối ưu chương trình
+        self.pic = pygame.image.load(path.join("images","3.png"))
+        self.pic = pygame.transform.scale(self.pic,(int(0.4*height),
+                                                    int(0.4*height)))
+        self.size = (width,height)
+        self.frame = frame
+    def start(self):
+        self.start_time = time.time()
+    def draw(self):
+        curr = time.time()               
+        if(self.paused):
+            self.start_time = curr
+        self.time_left = self.duration-(curr-self.start_time)
+        
+        if(int(self.time_left) != self.curr_index and 0 < self.time_left < 4):
+            self.curr_index = int(self.time_left)
+            self.pic = pygame.image.load(path.join("images",
+                                        "{:d}.png".format(self.curr_index)))
+            self.pic = pygame.transform.scale(self.pic,
+                                (int(0.4*self.size[1]),int(0.4*self.size[1])))
+        self.frame.blit(self.pic,(int(self.size[0])*(1/2 - 0.2),
+                                  int(self.size[1])*(1/2 - 0.2)))
 class Event_Subject():
     def __init__(self):
         self._mouse_hover = []
@@ -451,10 +509,4 @@ class Event_Subject():
     def draw(self):
         for i in self._draw_list:
             i.draw()
-    """chuyển cảnh"""
-    def clear_scene(self):
-        self._mouse_up.clear()
-        self._mouse_hover.clear()
-        self._mouse_down.clear()
-        self._key_r.clear()
-        self._draw_list.clear()    
+   

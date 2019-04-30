@@ -5,6 +5,7 @@ Created on Sun Mar 10 19:20:12 2019
 @author: Đăng Khoa
 """
 from os import path
+import time
 import pygame
 from screen import *
 from config_game import get_prefer_size
@@ -26,6 +27,7 @@ class Hu():
     height = 0
     fps = 60
     ship_location = []
+    info_board = None
     @staticmethod
     def run_game():
         Hu.load()
@@ -67,9 +69,15 @@ class Hu():
         pygame.init()        
         Hu.main_panel = pygame.display.set_mode(Hu.size)
         pygame.display.set_caption("Battleship")
+        
         Hu.subject = Intro_State()
-        Hu.subject.set_next(Place_Ship())
+        place_ship = Place_Ship()
+        count_down = Count_Down_State()
+        Hu.subject.set_next(place_ship)
+        place_ship.set_next(count_down)
+        
         Hu.subject.enter_state()
+        
         Hu.fps_clock = pygame.time.Clock()
             
 class Abstract_State(Event_Subject):
@@ -125,7 +133,7 @@ class Place_Ship(Abstract_State):
         background = JustDraw(bg,Hu.main_panel,0,0)
         half = Panel(int(2*Hu.width/3),0,int(Hu.width/3),
                          Hu.height,(0,0,0,75),Hu.main_panel)
-        board_1 = Grid(int(Hu.width/16),int(Hu.height/8),
+        board_1 = Grid(int(Hu.width/16),int(Hu.height/20),
                 int(Hu.width/2.2),int(Hu.width/2.2),Hu.main_panel)
         """Bắt đầu import tàu vào game và event cho tàu"""
         list_ship = BuildShip.build_user_ship(Hu.width,Hu.height,
@@ -142,8 +150,21 @@ class Place_Ship(Abstract_State):
                                             (255,255,255),"Undo.png",
                                             Hu.main_panel)
         button.set_listener(Undo_Listener())
+        button_1 = Button.create_image_button(int(6*Hu.width/8),
+                                            int(6*Hu.height/7),
+                                            Hu.width//21,Hu.width//21,
+                                            (255,255,255),"tick.png",
+                                            Hu.main_panel)
+        button_1.set_listener(Start_Battle_Listener())        
         self.add_draw_list(button)
+        self.add_draw_list(button_1)
         self.add_mouse_up(button)
+        self.add_mouse_up(button_1)
+        Hu.info_board = Info(Hu.width//9,int(14*Hu.height/16),
+                                int(0.8*Hu.width//2.2),Hu.width//15,Hu.main_panel)
+        Hu.info_board.set_text("Welcome to Battleship")
+        Hu.info_board.set_text("Drag the ships to the grid")
+        self.add_draw_list(Hu.info_board)
         for i in list_ship:
             k = Interactive_Ship(i)
             self.add_key_r(k)
@@ -156,7 +177,29 @@ class Place_Ship(Abstract_State):
             Hu.ship_location.append((i.x,i.y))
     def enter_state(self):
         super().enter_state()
-        Hu.states.pop("intro")#t ko cầnintro nữa nên để gc giải quyết
+        Hu.states.pop("intro")#t ko cần dến nó nửa
+        
+class Count_Down_State(Abstract_State):
+    def __init__(self):
+        super().__init__("Count Down State")
+        self.count_down = Count_Down(Hu.width,Hu.height,Hu.main_panel)
+    def _build_data(self):
+        prev = Hu.states.pop('place')
+        self._draw_list = prev._draw_list
+        self.add_draw_list(Panel(0,0,Hu.width,Hu.height,
+                                     (0,0,0,200),Hu.main_panel))
+        self.add_draw_list(self.count_down)     
+        b = Button.create_image_button(0,0,Hu.width//21,Hu.width//21,
+                                       (255,255,255),"pause.png",Hu.main_panel)
+        b.set_listener(Pause_Listener(b))
+        self.add_draw_list(b)
+        self.add_mouse_up(b)
+        self.count_down.start()
+    def draw(self):
+        if(self.count_down.time_left < 0.1):
+            Hu.to_change_state = True#nếu sắp hết thời gian chuyển state tiếp theo
+        super().draw()
+        
 """t dùng listener 1 lần thôi nên cho thẳng giá trị vô luôn nếu như vậy thì 
 java có thể sử dụng anouysmous class bên python lambda expression(anouysmous 
 function) lý do t chọn class bên python vì nó dễ hiểu cho bà hơn"""
@@ -183,10 +226,27 @@ class Undo_Listener(Listener):
             i.ship.x,i.ship.y = v
         for i in Hu.users:
             for j in range(5 - i.ship._num_rotate%4):
-                i.ship.rotate()
-class State_To_State_Listener(Listener):
+                i.ship.rotate()        
+                
+class Start_Battle_Listener(Listener):
     def mouse_up_listener(self):
-        Hu.to_change_state = True            
+        Hu.grid_player.grid.snap()
+        if(Hu.grid_player.grid.ready()):
+            Hu.to_change_state = True
+        else:
+            Hu.info_board.set_text("Invalid placement. Try again")
+"""có thứ quan trọng class này nhắc t để chỉ"""
+class Pause_Listener(Listener):
+    def __init__(self,button:Button):
+        self.button = button
+        self.num_click = 0
+        self.decorator = Image("play.png",self.button.icon.parent)
+    def mouse_up_listener(self):
+        temp = self.decorator#swap the icon 
+        self.decorator = self.button.icon
+        self.button.icon = temp
+        Hu.states["Count Down State"].count_down.paused = not Hu.states["Count Down State"].count_down.paused
+            
 if __name__ == "__main__":
     """function"""
     Hu.run_game()
