@@ -3,7 +3,7 @@ from copy import deepcopy
 
 
 class BattleshipGame():
-    #Initial boards, ships
+    #Initial boards
     def __init__(self, ships):
         self.userBoard = []
         self.userShips = dict(ships)
@@ -13,6 +13,7 @@ class BattleshipGame():
         for i in range(10):
             self.userBoard.append([' '] * 10)
             self.computerBoard.append([' '] * 10)
+
     def drawBoard(self, hide):
         # Draw boards
         # Aircraft is A, Destroyer is D, Submarine is S, Patrol boat is P, Battleship is B
@@ -95,7 +96,7 @@ class BattleshipGame():
 
         if board[x][y] == ' ':
             if orientation == 'v':
-                if x + size - 1 > 9:
+                if x + size > 9:
                     return False
                 else:
                     for i in range(size):
@@ -105,7 +106,7 @@ class BattleshipGame():
                         board[x + i][y] = ship
                     return True
             elif orientation == 'h':
-                if y + size - 1 > 9:
+                if y + size > 9:
                     return False
                 else:
                     for i in range(size):
@@ -278,7 +279,7 @@ def computerPlaceShips(battleShip, ship, size):
     print('Computer has placed a %s' % (ship))
 
 
-def computerMakesMove(battleShip, shipSizes, computerTargeting):
+def computerMakesMove(battleShip, shipSizes, computerTargeting,hits, targetStack,parityDictionary):
     # Pass the battleShip game object, the size of the ships, and whether or not the computer is in targetting mode.
     # Initialize parity variable as the minimum ship size still in play. If the computer is in targetting mode,
     # pop a move from the targetStack and play that move. Otherwise, choose a random x (letter) coordinate between 0 and 9
@@ -289,9 +290,7 @@ def computerMakesMove(battleShip, shipSizes, computerTargeting):
     # or if the computer has hit the user's ship, check if it has sunk by calling the check if sunk method.
     # If the ship has not been sunk, push to targetStack moves to the left, right, top, and bottom of the hit and return True(True is targetting mode).
 
-    global targetStack  # These three global variables are initialized in the main function below
-    global hits
-    global parityDictionary
+
     parity = min(parityDictionary.values())  # Get smallest ship size still remaining in play.
     while True:
         if computerTargeting:
@@ -365,11 +364,13 @@ def main():
     targetStack = []
     computerTargeting = False
     playing = True
-    fleetDictionary = {'Aircraft Carrier': 5,
-                       'Battleship': 4,
+    fleetDictionary = {'Aircraft Carrier': 4,
+                       'Battleship': 5,
                        'Submarine': 3,
                        'Destroyer': 3,
                        'Patrol Boat': 2}
+    print(fleetDictionary.get('1'))
+    
     ships = {key[0]: fleetDictionary.get(key) for key in
              fleetDictionary}  # The dictionary key is first letter of ship and the associated values are ship hitpoints
     parityDictionary = dict(ships)
@@ -407,4 +408,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
