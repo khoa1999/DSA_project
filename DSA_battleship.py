@@ -1,26 +1,39 @@
 import random
 from copy import deepcopy
+from typing import List
 
 
-class BattleshipGame():
-    #Initial boards
+class BattleshipGame:
+    # Initial boards
+    # The parameter @ships = {'A': 4, 'B': 5, 'S': 3, 'D': 3, 'P': 2}
     def __init__(self, ships):
-        self.userBoard = []
-        self.userShips = dict(ships)
-        self.computerBoard = []
-        self.computerShips = dict(ships)
+        self.__userBoard = []  # Private @field __userBoard
+        self.userShips = dict(ships)  # Each user ship point to -> the length remained of its self
+        self.__computerBoard = []  # Private @field __computerBoard
+        self.computerShips = dict(ships)  # Each user ship point to -> the length remained of its self
         self.rounds = 0
         for i in range(10):
-            self.userBoard.append([' '] * 10)
-            self.computerBoard.append([' '] * 10)
+            self.__userBoard.append([' '] * 10)
+            self.__computerBoard.append([' '] * 10)
+        self.computerTargeting = False  # Computer's targeting phase initially is False.
+        self.hits = 0  # Tracks computer hits and is used to determine whether or not to continue the targeting phase.
+        self.targetStack = []  # Target stack for computer in targeting mode, containing all possible and valid moves following a hit by the computer.
+        self.parityDictionary = dict(ships)  # Dictionary used to determine the lowest hit points of remained ships to adjust parity in computer hunting phase.
+        self.userShotList = [[int, int]]  # Each item is a list of coordinate [int x, int y]
+        self.computerShotList = [[int, int]]  # Each item is a list of coordinate [int x, int y]
+        self.userSunkShips = []  # List of user's ship names that been destroyed.
+        self.computerSunkShips = []  # List of computer's ship names that been destroyed.
+        self.userPlacedShips = {}  # Dictionary of user's ship and its position {'Ship_Name': [int x, int y, str: orientation], ...}
+        self.__computerPlacedShips = {}  # Dictionary of user's ship and its position {'Ship_Name' : [int x, int y, str: orientation], ...}
+        pass
 
     def drawBoard(self, hide):
         # Draw boards
         # Aircraft is A, Destroyer is D, Submarine is S, Patrol boat is P, Battleship is B
         # Rows are denoted from A to J
         # Columns are denoted from 1 to 10
-        stats = [['Nbr. of hits  :', self.getHits(True), self.getHits(False)], \
-                 ['Nbr. of misses:', self.getMisses(True), self.getMisses(False)], \
+        stats = [['Nbr. of hits  :', self.getHits(True), self.getHits(False)],
+                 ['Nbr. of misses:', self.getMisses(True), self.getMisses(False)],
                  ['Ships sunk    :', len(self.getEnemyFleet(True)[1]), len(self.getEnemyFleet(False)[1])]]
         shipsSunkByComputer = list(self.getEnemyFleet(True)[1])
         shipsSunkByPlayer = list(self.getEnemyFleet(False)[1])
@@ -28,21 +41,20 @@ class BattleshipGame():
         computerIndex = 0
         playerIndex = 0
         if hide:
-            computerBoard = deepcopy(self.computerBoard)
+            computerBoard = deepcopy(self.__computerBoard)
             for row in range(10):
                 for cell in range(10):
                     if computerBoard[row][cell] in 'ABCDSP':
                         computerBoard[row][cell] = ' '
         else:
-            computerBoard = self.computerBoard
-        columnNumbers = ('1 2 3 4 5 6 7 8 9 10 ')
+            computerBoard = self.__computerBoard
+        columnNumbers = '1 2 3 4 5 6 7 8 9 10 '
         print('%20s %21s %18s %s' % ('Computer\'s board:', 'User\'s board:', 'at round:', self.rounds))
         print('%24s %25s %33s %15s' % (columnNumbers, columnNumbers, 'Computer Status:', 'User Status:'))
         count = 65  # ASCII code of A is 65
-        for row in range(len(self.userBoard)):
+        for row in range(len(self.__userBoard)):
             letter = chr(count)  # chr will return a string of one character whose ASCII code is count(65-74)
-            print('%2s|%s|%5s|%s|' % (letter, '|'.join(computerBoard[row]), letter, '|'.join(self.userBoard[row])),
-                  end='')
+            print('%2s|%s|%5s|%s|' % (letter, '|'.join(computerBoard[row]), letter, '|'.join(self.__userBoard[row])), end='')
             if statsIndex < len(stats):
                 print('%17s %3.2d %19.2d' % (stats[statsIndex][0], stats[statsIndex][1], stats[statsIndex][2]))
                 statsIndex += 1
@@ -63,21 +75,21 @@ class BattleshipGame():
             count += 1
 
     def makeA_Move(self, computer, x, y):
-        # Return * if it's a miss and return # if it's a hit
+        # Return {' '} if it's a miss and return {'A', 'D', 'S', 'P', 'B'} if it's a hit
         if computer:
-            board = self.userBoard
+            board = self.__userBoard
         else:
-            board = self.computerBoard
+            board = self.__computerBoard
         if board[x][y] in '* #'.split():
-            return board[x][y]
+            return board[x][y]  # Return '*' or '#'
         elif board[x][y] == ' ':
             miss = board[x][y]
             board[x][y] = '*'
-            return miss
+            return miss  # Return ' '
         else:
             hit = board[x][y]
             board[x][y] = '#'
-            return hit
+            return hit  # Return one of {'A', 'D', 'S', 'P', 'B'}
 
     def validatePlacement(self, computer, ship, size, x, y, orientation):
         # Use the computer's or user's board depending on whether or not True has been passed into the method.
@@ -90,13 +102,13 @@ class BattleshipGame():
         # the size of the ship is added to the y coordinate instead of the x coordinate to check if the ship is
         # within the bounds of the game board.
         if computer:
-            board = self.computerBoard
+            board = self.__computerBoard
         else:
-            board = self.userBoard
+            board = self.__userBoard
 
         if board[x][y] == ' ':
             if orientation == 'v':
-                if x + size > 9:
+                if x + size - 1 > 9:
                     return False
                 else:
                     for i in range(size):
@@ -106,7 +118,7 @@ class BattleshipGame():
                         board[x + i][y] = ship
                     return True
             elif orientation == 'h':
-                if y + size > 9:
+                if y + size - 1 > 9:
                     return False
                 else:
                     for i in range(size):
@@ -121,9 +133,9 @@ class BattleshipGame():
     def getEnemyFleet(self, computer):
         # Create empty lists for the entire fleet of all ships sunk
         # If the computer is calling this method, iterate through the users's board, otherwise iterate through the computers's board
-        # For each ship in the ship dictionary defined in the init, if the hitpoints of the ship are greater than zero,
+        # For each ship in the ship dictionary defined in the init, if the hit points of the ship are greater than zero,
         # call the what ship private method to get the full name of the ship, and then append it to the ships to sink list.
-        # Otherwise, if the hitpoints of the ship is 0, get the full name
+        # Otherwise, if the hit points of the ship is 0, get the full name
         # of the ship as previously using the what ship method, and append it to the ships sunk list.
         # Finally, append both lists to the fleet list and return it.
         shipsToSink = []
@@ -171,12 +183,14 @@ class BattleshipGame():
             self.userShips[ship] -= 1
             if self.userShips[ship] == 0:
                 print('Computer sunk your %s!' % (self.whatShip(ship)))
+                self.userSunkShips.append(self.whatShip(ship))
                 return True
             return False
         else:
             self.computerShips[ship] -= 1
             if self.computerShips[ship] == 0:
                 print('You sunk Computer\'s %s!' % (self.whatShip(ship)))
+                self.computerSunkShips.append(self.whatShip(ship))
                 return True
             return False
 
@@ -190,9 +204,9 @@ class BattleshipGame():
         # the variable hits by one. After iterating, return hits.
         hits = 0
         if computer:
-            board = self.userBoard
+            board = self.__userBoard
         else:
-            board = self.computerBoard
+            board = self.__computerBoard
         for row in range(10):
             for cell in range(10):
                 if board[row][cell] == '#':
@@ -205,14 +219,189 @@ class BattleshipGame():
         # the variable misses by one. After iterating, return misses.
         misses = 0
         if computer:
-            board = self.userBoard
+            board = self.__userBoard
         else:
-            board = self.computerBoard
+            board = self.__computerBoard
         for row in range(10):
             for cell in range(10):
                 if board[row][cell] == '*':
                     misses += 1
         return misses
+
+    def userPlaceShips(self, ship, size):
+        # While ship placement is not valid, prompt the user to enter in x and y coordinates for their shot.
+        # After valid input has been accepted, ask the user for the orientation they would like to place their ship and only accept either v or h.
+        # After all input is validated, call the validate placement method to check
+        # if the ship can be placed on the board, if not, alert the user and prompt them to enter a new set of coordinates and orientation.
+        # If the ship can be placed on the board, alert the player that they have placed a ship and the type of ship placed.
+        valid = False
+        while not valid:
+            print('Placing %s of size %s' % (ship, size))
+            x, y = userInput()
+            orientation = None
+            while orientation not in 'v h'.split():
+                orientation = input('Is this ship vertical or horizontal (v,h)? ').lower()
+            valid = self.validatePlacement(False, ship[0], size, x, y, orientation)
+            print('You placed a %s' % ship)
+            self.drawBoard(True)
+            print()
+            if not valid:
+                print('Cannot place a %s there. Stern is out of the board or collides with another ship.' % ship)
+                print('Please take a look at the board and try again.')
+
+    def computerPlaceShips(self, ship, size):
+        # While a valid placement for a particular ship has not been randomly generated by the computer,
+        # generate random x and y coordinates between 0 and 9 and a random orientation (either v or h).
+        # Continue generating random coordinates until the ship can be placed on the board.
+        valid = False
+        while not valid:
+            x, y = random.randint(0, 9), random.randint(0, 9)
+            orientation = random.choice(['v', 'h'])
+            valid = self.validatePlacement(True, ship[0], size, x, y, orientation)
+            if valid:
+                # self.__computerPlacedShips.update({ship: [x, y, orientation]})
+                self.__computerPlacedShips.update({ship: [chr(x + 65), y + 1, orientation]})
+        print('Computer has placed a %s' % ship)
+
+    def computerMakesMove(self):
+        # Pass the battleShip game object, the size of the ships, and whether or not the computer is in targeting mode.
+        # Initialize parity variable as the minimum ship size still in play. If the computer is in targeting mode,
+        # pop a move from the targetStack and play that move. Otherwise, choose a random x (letter) coordinate between 0 and 9
+        # set the range of possible y coordinates (numbers) to the result of the modulo of the x coordinate and the parity(min ship size).
+        # Generate a random y coordinate in the defined range and then play the resulting move.
+        # If the computer has fired a shot in the same location previously, generate new x and y coordinates.
+        # Otherwise, print a message informing the user that the computer has missed their ship,
+        # or if the computer has hit the user's ship, check if it has sunk by calling the check if sunk method.
+        # If the ship has not been sunk, push to targetStack moves to the left, right, top, and bottom of the hit and return True(True is targeting mode).
+
+        parity = min(self.parityDictionary.values())  # Get smallest ship size still remaining in play.
+        while True:
+            if self.computerTargeting:
+                x, y = self.targetStack.pop()
+            else:
+                x = random.randrange(0, 10)
+                yRange = x % parity
+                y = random.randrange(yRange, 10, parity)
+            computerMove = self.makeA_Move(True, x, y)
+            if computerMove in '* #'.split():
+                continue
+            elif computerMove == ' ':
+                self.computerShotList.append([x, y])
+                print('Computer missed your ship at %s %s.' % (chr(x + 65), y + 1))
+                if self.computerTargeting:
+                    self.computerTargeting = True
+                    return True
+                else:
+                    self.computerTargeting = False
+                    return False
+            else:
+                self.hits += 1
+                self.computerShotList.append([x, y])
+                print('Computer hit your ship at %s %s!' % (chr(x + 65), y + 1))
+                if self.checkIfSunk(True, computerMove):
+                    self.hits -= self.parityDictionary[computerMove]  # If hits - length of ship sunk = 0, no hits were registered to a different ship.
+                    del self.parityDictionary[computerMove]  # If the ship has sunk, delete it from the dictionary to allow a new minimum ship size.
+                    if self.hits == 0:  # To make sure all hit shots are on the latest Sunk Ship, else at least 1 shot hit another ship that not been sunk yet.
+                        self.targetStack = []  # Empty the stack before changing computer to hunting mode
+                        self.computerTargeting = False
+                        return False  # Computer will be in hunting mode.
+                    else:
+                        self.computerTargeting = True
+                        return True  # Computer remains in targeting mode.
+                else:
+                    # Append x and y coordinates above, below, to the left, and to the right
+                    # of the hit to targetStack list if they are within the bounds of the game board.
+                    # This initiates the target phase. Checking if this cell has already been played
+                    # is not needed because this case is handled above.
+                    if y - 1 >= 0:
+                        self.targetStack.append([x, y - 1])
+                    if y + 1 <= 9:
+                        self.targetStack.append([x, y + 1])
+                    if x - 1 >= 0:
+                        self.targetStack.append([x - 1, y])
+                    if x + 1 <= 9:
+                        self.targetStack.append([x + 1, y])
+                    self.computerTargeting = True
+                    return True  # Computer will be in targeting mode.
+
+    def userMakesMoveAtXY(self, x, y):
+        userMove = self.makeA_Move(False, x, y)
+        if userMove in '* #'.split():
+            print('Sorry, %s %s was already played. Try again.' % (chr(x + 65), y + 1))
+            return False
+        elif userMove == ' ':
+            self.userShotList.append([x, y])
+            print('Your shot at %s %s missed.' % (chr(x + 65), y + 1))
+            return False
+        else:
+            self.userShotList.append([x, y])
+            print('You hit Computer\'s ship at %s %s!' % (chr(x + 65), y + 1))
+            if self.checkIfSunk(False, userMove):
+                raise ComputerShipSunkException
+            return True
+
+    def userMakesMove(self):
+        # Until a valid move is played on the board, ask the user for coordinates for their shot.
+        # If the a shot has already been taken at that location, alert the user and prompt them to enter another set of coordinates.
+        # If the user has missed, print a message and return.
+        # If the user has hit a ship, print a message indicating they hit a ship and then call the check if sunk method.
+        while True:
+            x, y = userInput()
+            userMove = self.makeA_Move(False, x, y)
+            if userMove in '* #'.split():
+                print('Sorry, %s %s was already played. Try again.' % (chr(x + 65), y + 1))
+            elif userMove == ' ':
+                self.userShotList.append([x, y])
+                print('Your shot at %s %s missed.' % (chr(x + 65), y + 1))
+                return
+            else:
+                self.userShotList.append([x, y])
+                print('You hit Computer\'s ship at %s %s!' % (chr(x + 65), y + 1))
+                if self.checkIfSunk(False, userMove):
+                    print("BOOM !")
+                return
+
+    def getLatestShot(self, isComputer):
+        try:
+            if isComputer:
+                return self.computerShotList.__getitem__(self.computerShotList.__len__() - 1)
+            else:
+                return self.userShotList.__getitem__(self.userShotList.__len__() - 1)
+        except IndexError:
+            return None
+
+    def getLatestSunkShipPosition(self, isComputer):
+        try:
+            if isComputer:
+                return self.__computerPlacedShips.get(self.getLatestSunkShipName(True))
+            else:
+                return self.userPlacedShips.get(self.getLatestSunkShipName(False))
+        except KeyError:
+            return None
+
+    def getLatestSunkShipName(self, isComputer):
+        try:
+            if isComputer:
+                return self.computerSunkShips.__getitem__(self.computerSunkShips.__len__() - 1)
+            else:
+                return self.userSunkShips.__getitem__(self.userSunkShips.__len__() - 1)
+        except IndexError:
+            return None
+
+    def getComputerPlacedShips(self):  # Get computer's ships name & position
+        return self.__computerPlacedShips
+
+    pass  # End BattleshipGame's constructor !
+
+
+class UserShipSunkException(Exception):
+    """ Raised when a new ship of user been sunk !"""
+    pass  # End UserShipSunkException constructor !
+
+
+class ComputerShipSunkException(Exception):
+    """ Raised when a new ship of computer been sunk !"""
+    pass  # End ComputerShipSunkException constructor !
 
 
 def userInput():
@@ -230,170 +419,42 @@ def userInput():
         if move[0].isalpha() and move[1].isnumeric():
             if len(move[0]) > 1:
                 continue
-            move[1] = int(move[1])
-            if 'a' <= move[0] <= 'j':
-                move[0] = ord(move[0]) - 97
-            if 1 <= move[1] <= 10:
-                move[1] = move[1] - 1
-                x = move[0]
-                y = move[1]
-                return x, y
+            if 'a' <= move[0] <= 'j' and 1 <= int(move[1]) <= 10:
+                return int(ord(move[0]) - 97), int(int(move[1]) - 1)
             else:
                 continue
         else:
             continue
 
 
-def userPlaceShips(battleShip, ship, size):
-    # While ship placement is not valid, prompt the user to enter in x and y coordinates for their shot.
-    # After valid input has been acceped, ask the user for the orientation they would like to place their ship and only accept either v or h.
-    # After all input is validated, call the validate placement method to check
-    # if the ship can be placed on the board, if not, alert the user and prompt them to enter a new set of coordinates and orientation.
-    # If the ship can be placed on the board, alert the player that they have placed a ship and the type of ship placed.
-    valid = False
-    while not valid:
-        print('Placing %s of size %s' % (ship, size))
-        x, y = userInput()
-        orientation = None
-        while orientation not in 'v h'.split():
-            orientation = input('Is this ship vertical or horizontal (v,h)? ').lower()
-        valid = battleShip.validatePlacement(False, ship[0], size, x, y, orientation)
-        print('You placed a %s' % (ship))
-        battleShip.drawBoard(True)
-        print()
-        if not valid:
-            print(
-                'Cannot place a %s there. Stern is out of the board or collides with another ship.\nPlease take a look at the board and try again.' % (
-                    ship))
-
-
-def computerPlaceShips(battleShip, ship, size):
-    # While a valid placement for a particular ship has not been randomly generated by the computer,
-    # generate random x and y coordinates between 0 and 9 and a random orientation (either v or h).
-    # Continue generating random coordinates until the ship can be placed on the board.
-    valid = False
-    while not valid:
-        x, y = random.randint(0, 9), random.randint(0, 9)
-        orientation = random.choice(['v', 'h'])
-        valid = battleShip.validatePlacement(True, ship[0], size, x, y, orientation)
-    print('Computer has placed a %s' % (ship))
-
-
-def computerMakesMove(battleShip, shipSizes, computerTargeting):
-    # Pass the battleShip game object, the size of the ships, and whether or not the computer is in targetting mode.
-    # Initialize parity variable as the minimum ship size still in play. If the computer is in targetting mode,
-    # pop a move from the targetStack and play that move. Otherwise, choose a random x (letter) coordinate between 0 and 9
-    # set the range of possible y coordinates (numbers) to the result of the modulo of the x coordinate and the parity(min ship size).
-    # Generate a random y coordinate in the defined range and then play the resulting move.
-    # If the computer has fired a shot in the same location previously, generate new x and y coordinates.
-    # Otherwise, print a message informng the user that the computer has missed their ship,
-    # or if the computer has hit the user's ship, check if it has sunk by calling the check if sunk method.
-    # If the ship has not been sunk, push to targetStack moves to the left, right, top, and bottom of the hit and return True(True is targetting mode).
-
-    global targetStack  # These three global variables are initialized in the main function below
-    global hits
-    global parityDictionary
-    parity = min(parityDictionary.values())  # Get smallest ship size still remaining in play.
-    while True:
-        if computerTargeting:
-            x, y = targetStack.pop()
-        else:
-            x = random.randrange(0, 10)
-            yRange = x % parity
-            y = random.randrange(yRange, 10, parity)
-        computerMove = battleShip.makeA_Move(True, x, y)
-        if computerMove in '* #'.split():
-            continue
-        elif computerMove == ' ':
-            print('Computer missed your ship at %s %s.' % (chr(x + 65), y + 1))
-            if computerTargeting:
-                return True
-            else:
-                return False
-        else:
-            hits += 1
-            print('Computer hit your ship at %s %s!' % (chr(x + 65), y + 1))
-            if battleShip.checkIfSunk(True, computerMove):
-                del parityDictionary[
-                    computerMove]  # If the ship has sunk, delete it from the dictionary to allow a new minimum ship size.
-                hits -= shipSizes[
-                    computerMove]  # if hits - length of ship sunk = 0, no hits were registered to a different ship
-                if hits == 0:
-                    targetStack = []
-                    return False  # Computer will be in hunting mode
-                else:
-                    return True  # Computer remains in targetting mode
-            else:
-                # Append x and y coordinates above, below, to the left, and to the right
-                # of the hit to targetStack list if they are within the bounds of the game board.
-                # This initiates the target phase. Checking if this cell has already been played
-                # is not needed because this case is handled above.
-                if y - 1 >= 0:
-                    targetStack.append([x, y - 1])
-                if y + 1 <= 9:
-                    targetStack.append([x, y + 1])
-                if x - 1 >= 0:
-                    targetStack.append([x - 1, y])
-                if x + 1 <= 9:
-                    targetStack.append([x + 1, y])
-                return True  # Computer will be in targetting mode.
-
-
-def userMakesMove(battleShip):
-    # Until a valid move is plyed on the board, ask the user for coordinates for their shot.
-    # If the a shot has already been taken at that location, alert the user and prompt them to enter another set of coordinates.
-    # If the user has missed, print a message and return.
-    # If the user has hit a ship, print a message indicating they hit a ship and then call the check if sunk method.
-    while True:
-        x, y = userInput()
-        userMove = battleShip.makeA_Move(False, x, y)
-        if userMove in '* #'.split():
-            print('Sorry, %s %s was already played. Try again.' % (chr(x + 65), y + 1))
-        elif userMove == ' ':
-            print('Your shot at %s %s missed.' % (chr(x + 65), y + 1))
-            return
-        else:
-            print('You hit Computer\'s ship at %s %s!' % (chr(x + 65), y + 1))
-            battleShip.checkIfSunk(False, userMove)
-            return
-
-
 def main():
-    global hits  # Tracks computer hits and is used to determine whether or not to continue the targeting phase
-    global targetStack  # List containing all possible, valid moves following a hit by the computer
-    global parityDictionary  # Dictionary used to determine the lowest hitpoint ship remaining to adjust parity in computer hunting phase.
-    hits = 0
-    targetStack = []
-    computerTargeting = False
     playing = True
     fleetDictionary = {'Aircraft Carrier': 4,
                        'Battleship': 5,
                        'Submarine': 3,
                        'Destroyer': 3,
                        'Patrol Boat': 2}
-    ships = {key[0]: fleetDictionary.get(key) for key in
-             fleetDictionary}  # The dictionary key is first letter of ship and the associated values are ship hitpoints
-    parityDictionary = dict(ships)
+    ships = {key[0]: fleetDictionary.get(key) for key in fleetDictionary}  # The dictionary key is 1st letter of ship and associated values are ship hit points.
     battleShip = BattleshipGame(ships)
     for computerShip in fleetDictionary:
-        computerPlaceShips(battleShip, computerShip, fleetDictionary[computerShip])
+        battleShip.computerPlaceShips(computerShip, fleetDictionary[computerShip])
     battleShip.drawBoard(True)
     print('Welcome to Battleship! Please place your ships.')
     for userShip in fleetDictionary:
-        userPlaceShips(battleShip, userShip, fleetDictionary[userShip])
+        battleShip.userPlaceShips(userShip, fleetDictionary[userShip])
     battleShip.incrementRounds()
     battleShip.drawBoard(True)
     input('You have placed all of your ships. Please press ENTER to continue.')
     print('Fire at the enemy fleet...')
     while playing:
-        userMakesMove(battleShip)
+        battleShip.userMakesMove()
         userWin = battleShip.checkWinning(False)
         if userWin:
             battleShip.drawBoard(True)
             print('Congratulations! You have won against the computer.')
             playing = False
             break
-        computerTargeting = computerMakesMove(battleShip, ships, computerTargeting)
+        battleShip.computerMakesMove()
         computerWin = battleShip.checkWinning(True)
         if computerWin:
             print('Sorry! You have lost against the computer.')
