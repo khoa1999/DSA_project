@@ -2,36 +2,35 @@ import random
 from copy import deepcopy
 from typing import List
 
-
 class BattleshipGame:
     # Initial boards
     # The parameter @ships = {'A': 4, 'B': 5, 'S': 3, 'D': 3, 'P': 2}
     def __init__(self, ships):
-        self.__userBoard = []  # Private @field __userBoard
-        self.userShips = dict(ships)  # Each user ship point to -> the length remained of its self
-        self.__computerBoard = []  # Private @field __computerBoard
+        self.__userBoard = []             # Private @field __userBoard
+        self.userShips = dict(ships)      # Each user ship point to -> the length remained of its self
+        self.__computerBoard = []         # Private @field __computerBoard
         self.computerShips = dict(ships)  # Each user ship point to -> the length remained of its self
         self.rounds = 0
         for i in range(10):
             self.__userBoard.append([' '] * 10)
             self.__computerBoard.append([' '] * 10)
-        self.computerTargeting = False  # Computer's targeting phase initially is False.
-        self.hits = 0  # Tracks computer hits and is used to determine whether or not to continue the targeting phase.
-        self.targetStack = []  # Target stack for computer in targeting mode, containing all possible and valid moves following a hit by the computer.
-        self.parityDictionary = dict(ships)  # Dictionary used to determine the lowest hit points of remained ships to adjust parity in computer hunting phase.
-        self.userShotList = [[int, int]]  # Each item is a list of coordinate [int x, int y]
-        self.computerShotList = [[int, int]]  # Each item is a list of coordinate [int x, int y]
-        self.userSunkShips = []  # List of user's ship names that been destroyed.
-        self.computerSunkShips = []  # List of computer's ship names that been destroyed.
-        self.userPlacedShips = {}  # Dictionary of user's ship and its position {'Ship_Name': [int x, int y, str: orientation], ...}
-        self.__computerPlacedShips = {}  # Dictionary of user's ship and its position {'Ship_Name' : [int x, int y, str: orientation], ...}
+        self.computerTargeting = False      # Computer's targeting phase initially is False.
+        self.hits = 0                       # Tracks computer hits and is used to determine whether or not to continue the targeting phase.
+        self.targetStack = []               # Target stack for computer in targeting mode, containing all possible and valid moves following a hit by the computer.
+        self.parityDictionary = dict(ships) # Dictionary used to determine the lowest hit points of remained ships to adjust parity in computer hunting phase.
+        self.userShotList = [[int, int]]    # Each item is a list of coordinate [int x, int y]
+        self.computerShotList = [[int, int]]# Each item is a list of coordinate [int x, int y]
+        self.userSunkShips = []             # List of user's ship names that been destroyed.
+        self.computerSunkShips = []         # List of computer's ship names that been destroyed.
+        self.userPlacedShips = {}           # Dictionary of user's ship and its position {'Ship_Name': [int x, int y, str: orientation], ...}
+        self.__computerPlacedShips = {}     # Dictionary of user's ship and its position {'Ship_Name' : [int x, int y, str: orientation], ...}
         pass
 
     def drawBoard(self, hide):
         # Draw boards
         # Aircraft is A, Destroyer is D, Submarine is S, Patrol boat is P, Battleship is B
-        # Rows are denoted from A to J
-        # Columns are denoted from 1 to 10
+        # Rows are denoted by characters from A to J
+        # Columns are denoted by numbers from 1 to 10
         stats = [['Nbr. of hits  :', self.getHits(True), self.getHits(False)],
                  ['Nbr. of misses:', self.getMisses(True), self.getMisses(False)],
                  ['Ships sunk    :', len(self.getEnemyFleet(True)[1]), len(self.getEnemyFleet(False)[1])]]
@@ -49,9 +48,9 @@ class BattleshipGame:
         else:
             computerBoard = self.__computerBoard
         columnNumbers = '1 2 3 4 5 6 7 8 9 10 '
-        print('%20s %21s %18s %s' % ('Computer\'s board:', 'User\'s board:', 'at round:', self.rounds))
-        print('%24s %25s %33s %15s' % (columnNumbers, columnNumbers, 'Computer Status:', 'User Status:'))
-        count = 65  # ASCII code of A is 65
+        print('%20s %21s %18s %s' % ('Computer\'s board: ', 'User\'s board: ', 'at round: ', self.rounds))
+        print('%24s %25s %33s %15s' % (columnNumbers, columnNumbers, 'Computer Status: ', 'User Status: '))
+        count = 65        # ASCII code of A is 65
         for row in range(len(self.__userBoard)):
             letter = chr(count)  # chr will return a string of one character whose ASCII code is count(65-74)
             print('%2s|%s|%5s|%s|' % (letter, '|'.join(computerBoard[row]), letter, '|'.join(self.__userBoard[row])), end='')
@@ -81,15 +80,15 @@ class BattleshipGame:
         else:
             board = self.__computerBoard
         if board[x][y] in '* #'.split():
-            return board[x][y]  # Return '*' or '#'
+            return board[x][y]      # Return '*' or '#'
         elif board[x][y] == ' ':
             miss = board[x][y]
             board[x][y] = '*'
-            return miss  # Return ' '
+            return miss             # Return ' '
         else:
             hit = board[x][y]
             board[x][y] = '#'
-            return hit  # Return one of {'A', 'D', 'S', 'P', 'B'}
+            return hit              # Return one of {'A', 'D', 'S', 'P', 'B'}
 
     def validatePlacement(self, computer, ship, size, x, y, orientation):
         # Use the computer's or user's board depending on whether or not True has been passed into the method.
