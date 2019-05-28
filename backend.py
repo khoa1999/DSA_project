@@ -26,7 +26,7 @@ class Backend:
         Backend.ships = {key[0]: Backend.fleetDictionary.get(key) for key in Backend.fleetDictionary}
         Backend.battleShipGame = bs.BattleshipGame(Backend.ships)
         Backend.playing = True
-        Backend.set_computer_ship()
+        #Backend.set_computer_ship()
         print('Welcome to Battleship! Please place your ships.')
         pass
 
@@ -37,7 +37,7 @@ class Backend:
 
         """ Placing computer' ships into Backend.battleShip """
         for computerShip in Backend.fleetDictionary:
-            Backend.battleShipGame.computerPlaceShips(computerShip, Backend.fleetDictionary[computerShip])
+            bs.computerPlaceShips(Backend.battleShipGame,computerShip, Backend.fleetDictionary[computerShip])
         pass
 
     @staticmethod
@@ -51,11 +51,18 @@ class Backend:
         """
         for key, value in ships.items():
             size = Backend.fleetDictionary.get(key)
-            if not Backend.battleShipGame.validatePlacement(False, key[0], size, value[0], value[1], value[2]):
+            """if not Backend.battleShipGame.validatePlacement(False, key[0], size, value[0], value[1], value[2]):
+                return False
+        Backend.battleShipGame.userPlacedShips = dict(ships)  # If no error. Update user's ship position to Core Game !
+
+        return True  # Successfully placing all ships"""
+        
+            if (Backend.battleShipGame.validatePlacement(False, key[0], size, value[0], value[1], value[2])==False):
                 return False
         Backend.battleShipGame.userPlacedShips = dict(ships)  # If no error. Update user's ship position to Core Game !
 
         return True  # Successfully placing all ships
+            
 
     @staticmethod
     def check_win():
