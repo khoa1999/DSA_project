@@ -4,6 +4,8 @@ Created on Sun Mar 10 19:20:12 2019
 
 @author: Đăng Khoa
 """
+import os
+import sys
 from os import path
 import pygame
 import numpy as np
@@ -11,6 +13,15 @@ from abc import ABC,abstractmethod
 from screen import *
 from config_game import get_prefer_size
 from backend import Backend
+
+if getattr(sys, 'frozen', False):
+    CurrentPath = sys._MEIPASS
+# If it's not use the path we're on now
+else:
+    CurrentPath = os.path.dirname(__file__)
+# Look for the 'images' folder on the path I just gave you:
+imageFolderPath = os.path.join(CurrentPath, 'images')
+
 
 
 class Hu():
@@ -139,7 +150,7 @@ class Intro_State(Abstract_State):
         super().__init__("Intro")
     def _build_data(self):
         intro_bg = Intro(Hu.main_panel,Hu.width,Hu.height)
-        link_logo = path.join("images","logo.png")
+        link_logo = path.join(imageFolderPath,"logo.png")
         logo = pygame.image.load(link_logo).convert_alpha()
         size = (int(Hu.height/3.5)*4,int(Hu.height/3.5))#để đảm bảo truy cập đc file
         logo = pygame.transform.scale(logo,size)#nhất là trên MAC CỦA NGỌC :)0
@@ -159,7 +170,7 @@ class Place_Ship_State(Abstract_State):
     def __init__(self):
         super().__init__("Place")
     def _build_data(self):
-        link_bg = path.join("images","ocean7.jpg")
+        link_bg = path.join(imageFolderPath,"ocean7.jpg")
         bg = pygame.image.load(link_bg).convert_alpha()
         bg = pygame.transform.scale(bg,Hu.size)
         background = JustDraw(bg,Hu.main_panel,0,0)
