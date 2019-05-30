@@ -2,7 +2,6 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Mar 28 16:03:56 2019
-
 """
 import DSA_battleship as bs
 
@@ -17,13 +16,19 @@ class Backend:
     battleShipGame = None
     playing = False
     ships = None
-
+    player_hits = {}
+    computer_hits = {}
+    flag = None
+    
     @staticmethod
     def start_game():
         # The dictionary @{ships}'s key is the 1st letter of ship's name and the associated values are ship's length
         Backend.ships = {key[0]: Backend.fleetDictionary.get(key) for key in Backend.fleetDictionary}
         Backend.battleShipGame = bs.BattleshipGame(Backend.ships)
         Backend.playing = True
+        Backend.flag = False
+        Backend.player_hits = {}
+        Backend.computer_hits = {}
         #Backend.set_computer_ship()
         print('Welcome to Battleship! Please place your ships.')
         pass
@@ -35,7 +40,8 @@ class Backend:
 
         """ Placing computer' ships into Backend.battleShip """
         for computerShip in Backend.fleetDictionary:
-            bs.computerPlaceShips(Backend.battleShipGame,computerShip, Backend.fleetDictionary[computerShip])
+            Backend.battleShipGame.computerPlaceShips(
+                    computerShip, Backend.fleetDictionary[computerShip])
         pass
 
     @staticmethod
@@ -54,9 +60,11 @@ class Backend:
         Backend.battleShipGame.userPlacedShips = dict(ships)  # If no error. Update user's ship position to Core Game !
 
         return True  # Successfully placing all ships"""
+        
             if (Backend.battleShipGame.validatePlacement(False, key[0], size, value[0], value[1], value[2])==False):
                 return False
         Backend.battleShipGame.userPlacedShips = dict(ships)  # If no error. Update user's ship position to Core Game !
+
         return True  # Successfully placing all ships
             
 
@@ -80,36 +88,43 @@ class Backend:
         if Backend.battleShipGame is None:
             raise ValueError("The game has not yet been created !")
         """ Raise ComputerShipSunkException if the latest move sink the enemy ship !"""
-        return Backend.battleShipGame.userMakesMoveAtXY(x, y)
+        if((x,y) in Backend.player_hits.keys()):
+            return Backend.player_hits[(x,y)]
+        try:
+            a = Backend.battleShipGame.userMakesMoveAtXY(x, y)
+        except Exception:
+            a = 2
+            Backend.flag = True
+        if(a == 1):
+            Backend.player_hits[(x,y)] = False
+        elif(a == 2):
+            Backend.player_hits[(x,y)] = True
+        return Backend.player_hits[(x,y)]
 
     @staticmethod
     def computer_hit_at():
         """ Return computer's shot position at [x, y] !"""
-        Backend.battleShipGame.computerMakesMove()
+        Backend.computer_hits[(Backend.battleShipGame.getLatestShot(True)[0],
+                               Backend.battleShipGame.getLatestShot(True)[1])] = Backend.battleShipGame.computerMakesMove()
         return Backend.battleShipGame.getLatestShot(True)  # Latest shot of computer [x: int, y: int]
-
+    
     @staticmethod
     def end_game():
         Backend.battleShipGame = None
         Backend.playing = False
         Backend.ships = None
         pass
-
-    
-    
-    
-    
-        
-    
-    
-        
-    
-        
-        
-        
-        
-        
-        
-        
-    
+    @staticmethod
+    def get_score():
+        return [Backend.battleShipGame.getHits(True),
+                Backend.battleShipGame.getHits(False)]
+    @staticmethod
+    def check():
+        if(Backend.flag):
+            Backend.flag = False
+            print([Backend.battleShipGame.getLatestSunkShipName(True),
+                    Backend.battleShipGame.getLatestSunkShipName(True)])
+            return [Backend.battleShipGame.getLatestSunkShipName(True),
+                    Backend.battleShipGame.getLatestSunkShipName(True)]
+        return None
     
