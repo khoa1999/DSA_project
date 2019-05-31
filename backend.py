@@ -2,6 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Mar 28 16:03:56 2019
+
+@author: Ho Dang Phuong Ngoc
+
 """
 import DSA_battleship as bs
 
@@ -122,9 +125,28 @@ class Backend:
     def check():
         if(Backend.flag):
             Backend.flag = False
-            print([Backend.battleShipGame.getLatestSunkShipName(True),
-                    Backend.battleShipGame.getLatestSunkShipName(True)])
             return [Backend.battleShipGame.getLatestSunkShipName(True),
-                    Backend.battleShipGame.getLatestSunkShipName(True)]
+                    Backend.battleShipGame.getLatestSunkShipPosition(True)]
         return None
+    @staticmethod
+    def get_health(name:str):
+        return Backend.fleetDictionary[name]
+    
+    
+    
+    
+    
+        
+    
+    
+        
+    
+        
+        
+        
+        
+        
+        
+        
+    
     

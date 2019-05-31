@@ -289,10 +289,9 @@ class BattleshipGame:
                 print('Computer missed your ship at %s %s.' % (chr(x + 65), y + 1))
                 if self.computerTargeting:
                     self.computerTargeting = True
-                    return True
                 else:
                     self.computerTargeting = False
-                    return False
+                return False
             else:
                 self.hits += 1
                 self.computerShotList.append([x, y])
@@ -303,10 +302,8 @@ class BattleshipGame:
                     if self.hits == 0:  # To make sure all hit shots are on the latest Sunk Ship, else at least 1 shot hit another ship that not been sunk yet.
                         self.targetStack = []  # Empty the stack before changing computer to hunting mode
                         self.computerTargeting = False
-                        return False  # Computer will be in hunting mode.
                     else:
                         self.computerTargeting = True
-                        return True  # Computer remains in targeting mode.
                 else:
                     # Append x and y coordinates above, below, to the left, and to the right
                     # of the hit to targetStack list if they are within the bounds of the game board.
@@ -321,23 +318,24 @@ class BattleshipGame:
                     if x + 1 <= 9:
                         self.targetStack.append([x + 1, y])
                     self.computerTargeting = True
-                    return True  # Computer will be in targeting mode.
+                return True
 
     def userMakesMoveAtXY(self, x, y):
         userMove = self.makeA_Move(False, x, y)
         if userMove in '* #'.split():
             print('Sorry, %s %s was already played. Try again.' % (chr(x + 65), y + 1))
-            return False
+            a = 0
         elif userMove == ' ':
             self.userShotList.append([x, y])
             print('Your shot at %s %s missed.' % (chr(x + 65), y + 1))
-            return False
+            a = 1
         else:
+            a = 2
             self.userShotList.append([x, y])
             print('You hit Computer\'s ship at %s %s!' % (chr(x + 65), y + 1))
             if self.checkIfSunk(False, userMove):
                 raise ComputerShipSunkException
-            return True
+        return a
 
     def userMakesMove(self):
         # Until a valid move is played on the board, ask the user for coordinates for their shot.
