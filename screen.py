@@ -8,7 +8,9 @@ import time
 from abc import ABC,abstractmethod
 from os import path
 from numpy.random import randint
+from copy import deepcopy
 import pygame
+from backend import Backend
 
 """Interface to draw"""
 class Draw():
@@ -102,11 +104,11 @@ class Image(Decorator):
         self.frame.blit(self.image,(self.x,self.y))
 """Ship base class"""      
 class Ship(Icon):
+    _placed = False
     def __init__(self,link,x,y,health,frame:pygame.display):
         self.link = link
-        self.ima = pygame.image.load(link).convert_alpha()
+        self.ima = pygame.image.load(path.join("images",link)).convert_alpha()
         w,h = self.image.get_size()
-        self._placed = False
         self._x = x
         self._y = y
         self.sink = False
@@ -115,18 +117,31 @@ class Ship(Icon):
         self.base_ship = self
         self._num_rotate = 0
         super().__init__(x,y,w,h,frame) 
+        self.position_ship_on_grid = {}
+    def set_spot_grid(self,x:int,y:int,ori:str):
+        self.coor = (x,y)
+        self.ori = ori
+    def find_place(self,x,y):
+        if(self.base_ship.ori == 'h' and self.base_ship.coor[0] == x and 
+           -1<(self.base_ship.coor[1] - y) < (self.base_ship._health - 1)):
+            return self.base_ship.coor[1] - y
+        elif(self.base_ship.ori == 'v' and self.base_ship.coor[1] == y and 
+           -1<(self.base_ship.coor[0] - x) < (self.base_ship._health - 1)):
+            return self.base_ship.coor[0] - x
+        else:
+            return -1
     def draw(self):
         self.frame.blit(self.image,(self.x,self.y))
     def fixed(self):
-        self._placed = True        
+        Ship._placed = True        
     def rotate(self):
-        if(not self._placed):
+        if(not Ship._placed):
             self._num_rotate += 1
             self.image = pygame.transform.rotate(self.image,90)
     def undo(self):
-        self._placed = False
+        Ship._placed = False
         return self
-    def hitandupdate(self,section:int):
+    def hit_and_update(self,section:int):
         return BuildShip.update_ship(self,section)
     def get_health(self):
         return self._health_left
@@ -135,14 +150,14 @@ class Ship(Icon):
         return self._x
     @x.setter
     def x(self,num):
-        if(not self._placed):
+        if(not Ship._placed):
             self._x = num
     @property
     def y(self):
         return self._y
     @y.setter
     def y(self,num):
-        if(not self._placed):
+        if(not Ship._placed):
             self._y= num    
     @property
     def image(self):
@@ -152,21 +167,19 @@ class Ship(Icon):
         self.ima = image
         self.w = self.ima.get_width()
         self.h = self.ima.get_height()
-    def set_fire_location(self,location):
-        pass
     def resize(self,y:int):
-        if(self.x > self.y):
+        if(self.w > self.h):
             self.image = pygame.transform.scale(self.image,
                                                 (y*self.get_health(),y))
         else:
-            prev = self._placed
-            self._placed = False
+            prev = Ship._placed
+            Ship._placed = False
             self.rotate()
             self.image = pygame.transform.scale(self.image,
                                                 (y*self.get_health(),y))
-            self._placed = prev
+            Ship._placed = prev
     def is_fixed(self):
-        return self._placed
+        return Ship._placed
 """Base class for computer ship"""    
 class Computer_ship(Ship):
     def __init__(self,link,x,y,health:int,frame:pygame.display):
@@ -183,31 +196,41 @@ class Computer_ship(Ship):
     @classmethod
     def make_computer(cls,ship:Ship):
         return cls(ship.link,ship.x,ship.y,ship._health,ship.frame)
-    def list_ship(cls,array:list):
+    @staticmethod
+    def list_ship(array:list):
         return_list = []
         for i in array:
-            return_list.append(Computer_ship.make_computer(i))
+            return_list.append(Computer_ship.make_computer(i.icon))
         return return_list
 """Decorator for ship"""        
 class Ship_on_fire(Ship):
     def __init__(self,ship:Ship,section:int):
+        self.section = section
         self.parent = ship 
-        self.offset_1 = 0
-        self.offset_2 = 0
-        self.fire_size = (35,45)
-        super().__init__(ship.link,ship.x,ship.y,ship._health,ship.frame) 
+        if(ship.w > ship.h):
+            self.fire_size = (ship.h,ship.h)
+        else:
+            self.fire_size = (ship.w,ship.w)
+        super().__init__(ship.link,ship.x,ship.y,ship._health,ship.frame)
         self.base_ship = ship.base_ship
         self._health_left = (ship.get_health() - 1)
-        self._placed = True
+        self.fixed()
         self.image = pygame.image.load(path.join("images","fire.png"))
+        self.w = ship.w
+        self.h = ship.h
     def draw(self):
         self.parent.draw()
         self.image = pygame.transform.scale(self.image,self.fire_size)
-        self.frame.blit(self.image,(self.x,self.y))
+        self.w = self.parent.w
+        self.h = self.parent.h
+        if(self.w > self.h):
+            self.frame.blit(self.image,(self.x + self.h*self.section,self.y))
+        else:
+            self.frame.blit(self.image,(self.x + self.h*self.section,self.y))
     def undo(self):
         return self.parent
 """Decorator for ship"""    
-class Sink(Ship):
+class Sunk(Ship):
     def __init__(self,ship:Ship):
         self.parent = ship
         super().__init__(ship.link,ship.x,ship.y,ship._health,ship.frame)
@@ -216,10 +239,11 @@ class Sink(Ship):
                                  self.image.get_height()))
         canvas.fill((224,255,255))
         canvas.blit(self.image,(0,0))
-        canvas.set_alpha(200)
+        canvas.set_alpha(125)
         self.image = canvas
         self._health_left = 0
         self._placed = True
+        self.fixed()
     def undo(self):
         return self.parent
 """The base class for grid"""
@@ -237,19 +261,38 @@ class Grid(Icon):
     def draw(self):
         self.frame.blit(self.grid,(self.x,self.y))
         if(self._mouse_square != (-1,-1)):
-        	self.frame.blit(self._one_square,(int(self.x + (self.w/11)*self._mouse_square[0]),
-                              int(self.y + (self.h/11)*self._mouse_square[1])))
+        	self.frame.blit(self._one_square,(int(self.x + (self.w/10)*self._mouse_square[0]),
+                              int(self.y + (self.h/10)*self._mouse_square[1])))
     def add_boat(self,ship):
         self.list_ship.append(ship)
     def snap(self):
         for i in self.list_ship:
-            if((self.x <= i.x <= self.x + self.w) and 
-               (self.y <= i.y <= self.y + self.h)):
-                i.x = int((i.x - self.x)/(self.w//11))*(self.w//11) + self.x
-                i.y = int((i.y - self.y)/(self.h//11))*(self.h//11) + self.y
-            i.fixed()
+            i.x = int((i.x - self.x)/(self.w//10))*(self.w//10) + self.x
+            i.y = int((i.y - self.y)/(self.h//10))*(self.h//10) + self.y
     def ready(self):
+        location_ship_on_grid = {}
+        for i in self.list_ship:
+            x = int((i.x - self.x)/(self.w//10))
+            y = int((i.y - self.y)/(self.h//10))
+            if(-1< x < 10 and -1 < y < 10):
+                self.snap()
+            else:
+                return False
+            if(i.w > i.h):
+                location_ship_on_grid[str.split(i.link,".")[0]]= (y,x,'h')
+                i.set_spot_grid(x,y,'h')
+            else:
+                location_ship_on_grid[str.split(i.link,".")[0]] = (y,x,'v') 
+                i.set_spot_grid(x,y,'v')
+        if(Backend.set_user_ship(location_ship_on_grid)):
+            i.fixed()
+            #Backend.set_computer_ship()
+            return True
+        Backend.start_game()
         return False
+    
+    def set_hit(self,x:int,y:int):
+        pass
 class BuildShip():
     @staticmethod
     def update_ship(ship:Ship,location:int):
@@ -257,33 +300,38 @@ class BuildShip():
         if(health == 0):
             if(isinstance(ship.base_ship,Computer_ship)):
                 ship.base_ship = ship.base_ship.convert()
-            return Sink(ship)
+            return Sunk(ship)
         else:
             return Ship_on_fire(ship,location)
     @staticmethod
     def build_user_ship(Width,Height,board:Grid,
                         main_panel:pygame.display):
-        magic_num = 0.95
-        link = path.join("images","patrol.png")
-        patrol = Ship(link,int(5*Width//7),int(Height//10),2,main_panel)
+        magic_num = 1
+    
+        patrol = Ship("Patrol Boat.png",int(5*Width//7),int(Height//10),2,main_panel)
         patrol.rotate()
-        patrol.resize(int(magic_num*board.w/10))  
-        link = path.join("images","destroyer.png")
-        destroyer = Ship(link,int(5*Width//7),int(2.5*Height//10),3,main_panel)
+        patrol.resize(int(magic_num*board.w/10))
+        
+        destroyer = Ship("Destroyer.png",
+                         int(5*Width//7),int(2.75*Height//10),3,main_panel)
         destroyer.rotate()
-        destroyer.resize(int(magic_num*board.w/10))  
-        link = path.join("images","battleship.png")
-        battle_ship = Ship(link,int(5*Width//7),int(4*Height//10),5,main_panel)
+        destroyer.resize(int(magic_num*board.w/10))
+        
+        battle_ship = Ship("Battleship.png",
+                           int(5*Width//7),int(4.5*Height//10),5,main_panel)
         battle_ship.rotate()
-        battle_ship.resize(int(magic_num*board.w/10))      
-        link = path.join("images","carrier.png")
-        air_carrier = Ship(link,int(5*Width//7),int(5.5*Height//10),4,main_panel)
+        battle_ship.resize(int(magic_num*board.w/10))
+        
+        air_carrier = Ship("Aircraft Carrier.png",
+                           int(5*Width//7),int(6*Height//10),4,main_panel)
         air_carrier.rotate()
         air_carrier.resize(int(magic_num*board.w/10))
-        link = path.join("images","submarine.png")
-        sub = Ship(link,int(5*Width//7),int(7*Height//10),3,main_panel)
+        
+        sub = Ship("Submarine.png",
+                   int(5*Width//7),int(7.75*Height//10),3,main_panel)
         sub.rotate()
         sub.resize(int(magic_num*board.w/10))
+        
         return [patrol,destroyer,battle_ship,air_carrier,sub]        
 """Event handling"""
 class Event(Draw):
@@ -347,6 +395,7 @@ class Interactive_Ship(Event):
             else:
                 self.text_field.text = "Health left {:d}".format(self.ship.get_health())
             self.text_field.draw()
+            
 class Interactive_Board(Event):
     def __init__(self,grid:Grid):
         super().__init__(grid)
@@ -355,18 +404,68 @@ class Interactive_Board(Event):
     def mouse_hover(self,mouse_pos):
         if(self.grid.mouse_on(mouse_pos)):
             self.grid._mouse_square =  (int((mouse_pos[0] - 
-                                           self.grid.x)/(self.grid.w/11)),
+                                           self.grid.x)/(self.grid.w/10)),
                                   int((mouse_pos[1] - 
-                                       self.grid.y)/(self.grid.w/11)))
-        if(self.grid._mouse_square[0] == 11 or 
-           self.grid._mouse_square[1] == 11 or not 
+                                       self.grid.y)/(self.grid.w/10)))
+        if(self.grid._mouse_square[0] == 10 or 
+           self.grid._mouse_square[1] == 10 or not 
            self.grid.mouse_on(mouse_pos)):
             self.grid._mouse_square = (-1,-1)
     def draw(self):
         self.grid.draw()
-"""Interface for Listener giống java swing và t ko phải vì t rảnh mà t cần
-gọi controller và muốn giữ draw object lại ở screen bà thử import main vào 
-screen và chạy main thử"""
+
+class Player_Board(Draw):
+    def __init__(self,board:Grid):
+        self.board = board
+        self.fire =  pygame.image.load(path.join("images","fire.png"))
+    def draw(self):
+        self.board.draw()
+        for i in self.board.list_ship:
+            i.draw()
+        for i,v in Backend.computer_hits.items():
+            if(v):
+                self.board.frame.blit(pygame.transform.scale(self.fire,(self.board.h//10,
+                                                                        self.board.h//10)),
+                                      (self.board.x + i[1]*self.board.h//10,
+                                             self.board.y + i[0]*self.board.h//10))
+    def set_board(self,board:Grid):
+        self.board = board
+    
+class Computer_Board(Event):
+    def __init__(self,grid:Grid):
+        super().__init__(grid)
+        self.target = pygame.image.load(path.join("images",'1b.png'))
+        self.target = pygame.transform.scale(self.target,
+                                             (self.icon.h//10,self.icon.w//10))
+        self.find_spot = True
+        self.spot = (self.icon.x,self.icon.y)
+        self.fire = False
+        self.fire_location = None
+        self.shell_land = None
+    def receive_ship(self,ships:list,location:dict):
+        pass
+    def mouse_hover(self,mouse_pos:tuple):
+        if(self.icon.mouse_on(mouse_pos)):
+            self.find_spot = True
+            self.spot = mouse_pos
+        else:
+            self.find_spot = False
+    def mouse_up(self,mouse_pos:tuple):
+        if(self.icon.mouse_on(mouse_pos)):
+            self.fire = True
+            x = 10*(self.spot[0]-self.icon.x)//self.icon.h
+            y = 10*(self.spot[1]-self.icon.y)//self.icon.w
+            if(x == 10):
+                x = 9
+            if(y == 10):
+                y = 9
+            self.fire_location = (x,y)
+            self.shell_land = ()
+    def draw(self):
+        if(self.find_spot):
+            self.icon.frame.blit(self.target,(self.spot[0] - self.icon.h//20,
+                                              self.spot[1] - self.icon.h//20))
+
 class Listener():
     @abstractmethod
     def mouse_up_listener(self):
@@ -383,7 +482,9 @@ class Listener():
     @abstractmethod
     def key_r_listner(self):
         pass
-"""Base class cho button vì class cho sự linh hoạt"""        
+    def draw(self):
+        pass
+     
 class Button(Event):
     def __init__(self,base:Decorator): #lý do m cần overwrite constructor
         super().__init__(base) #làm vì Decorator là subclass của Icon
@@ -395,24 +496,23 @@ class Button(Event):
                 self.listener.mouse_hover_listener()
             else:
                 self.listener.not_mouse_on_listener()
-        except:
-            print("Nhớ tạo listener")
+        except Exception as e:
+            print(str(e))
     def mouse_down(self,mouse_pos:tuple):
         if(self.icon.mouse_on(mouse_pos)):
             try:
                 self.listener.mouse_down_listener()
-            except:
-                print("Nhớ tạo listener")        
+            except Exception as e:
+                print(str(e))        
     def mouse_up(self,mouse_pos:tuple):
         if(self.icon.mouse_on(mouse_pos)):
             try:
                 self.listener.mouse_up_listener()
-            except:
-                print("Nhớ tạo listener")         
+            except Exception as e:
+                print(str(e))         
     def draw(self):
         self.icon.draw()
-    """classmethod là đặt trưng python cái t muốn đơn giản là overloading 
-    contructor bà code Button.method(arg1,arg2,..) vậy thôi"""
+        self.listener.draw()
     @classmethod
     def create_text_button(cls,x:int,y:int,length:int,height:int,text:str,
                          color_bg:tuple,color_txt:tuple,frame:pygame.display):
@@ -425,7 +525,7 @@ class Button(Event):
         p = Panel(x,y,length,height,color,frame)
         i = Image(link,p)
         return cls(i)
-"""Hiện thị thông tin trong chuyện gì đang xảy ra trong game"""
+
 class Info(Draw):
     def __init__(self,x:int,y:int,w:int,h:int,frame:pygame.display):
         self.base_panel = Panel(x,y,w,h,(0,0,0),frame)
@@ -464,7 +564,7 @@ class Count_Down(Draw):
     def draw(self):
         curr = time.time()               
         if(self.paused):
-            self.start_time = curr
+            self.start_time = curr#có thê cải thiện hơn
         self.time_left = self.duration-(curr-self.start_time)
         
         if(int(self.time_left) != self.curr_index and 0 < self.time_left < 4):
@@ -473,8 +573,158 @@ class Count_Down(Draw):
                                         "{:d}.png".format(self.curr_index)))
             self.pic = pygame.transform.scale(self.pic,
                                 (int(0.4*self.size[1]),int(0.4*self.size[1])))
-        self.frame.blit(self.pic,(int(self.size[0])*(1/2 - 0.2),
+        self.frame.blit(self.pic,(int(self.size[0])*(1/2 - 0.1),
                                   int(self.size[1])*(1/2 - 0.2)))
+        
+class Winner(Draw):
+    def __init__(self,width:int,height:int,frame:pygame.display):
+        self.pic = pygame.image.load(path.join("images","win.jpg"))
+        self.pic = pygame.transform.scale(self.pic,(width,height))
+        self.frame = frame
+        self.ratio = 3.72
+        self.score = 0
+        other = pygame.image.load(path.join("images","won.png"))
+        self.pic.blit(
+                pygame.transform.scale(other,(int(3.72*width//9),width//9)),
+                (width//12,width//25))
+    def draw(self):
+        self.frame.blit(self.pic,(0,0))
+    def set_score(self,num:int):
+        self.score = num
+        
+class Loser(Draw):
+    def __init__(self,width:int,height:int,frame:pygame.display):
+        self.pic = pygame.image.load(path.join("images","lost.jpg"))
+        self.pic = pygame.transform.scale(self.pic,(width,height))
+        self.frame = frame
+        self.ratio = 4
+        self.score = 0
+        other = pygame.image.load(path.join("images","lost.png"))
+        self.pic.blit(
+                pygame.transform.scale(other,(int(4*width//9),width//9)),
+                (width//12,width//25))
+    def draw(self):
+        self.frame.blit(self.pic,(0,0))        
+        
+class Shell(Icon):
+    def __init__(self,width:int,height:int,frame:pygame.display):
+        self.proto = pygame.image.load(path.join("images","bullet1.png"))
+        self.shell = pygame.transform.scale(self.proto,
+                                            (int(8*height//(21*3)),
+                                             height//21))
+        super().__init__(0,0,int(8*height//(21*3)),height//21,frame)
+        self.angle = 0
+    def draw(self):      
+        self.frame.blit(self.shell,(self.x,self.y))
+    def rotate(self,angle:int):
+        self.shell = pygame.transform.rotate(self.shell,angle)
+        self.angle = angle
+    def reset(self):
+        self.shell = pygame.transform.scale(self.proto,(self.w,self.h))
+
+class Missile(Icon):
+    def __init__(self,width:int,height:int,frame:pygame.display):
+        self.proto = pygame.image.load(path.join("images","Missile04N.png"))
+        self.shell = pygame.transform.scale(self.proto,
+                                            (int(8*height//(21*3)),
+                                             height//7))
+        super().__init__(0,0,int(8*height//(21*3)),height//7,frame)
+        self.angle = 0
+    def draw(self):      
+        self.frame.blit(self.shell,(self.x,self.y))
+    def rotate(self,angle:int):
+        self.shell = pygame.transform.rotate(self.shell,angle)
+        self.angle = angle
+    def reset(self):
+        self.shell = pygame.transform.scale(self.proto,(self.w,self.h))
+        
+class Effect_Board(Draw):
+    def __init__(self,grid:Grid):
+        self.grid = grid
+        self.location = []
+        self.splash = pygame.image.load(path.join("images","water-splash.png"))
+        self.fire = pygame.image.load(path.join("images","fire.png"))
+        self.cross = pygame.image.load(path.join("images","cancel.png"))
+        self.image_ship = []
+    def set_grid(self,grid:Grid):
+        self.grid = grid
+    def set_location(self,loc:tuple):
+        self.location.append(loc)
+    def reset(self):
+        self.location.clear()
+    def draw(self):
+        a = Backend.check()
+        if(a != None):
+            self.image_ship.append(Ship(a[0] + ".png",
+                                        self.grid.x + a[1][1]*self.grid.h//10,
+                                        self.grid.y + a[1][0]*self.grid.h//10,
+                                        self.grid.frame))
+            if(a[1][2] == 'h'):
+                self.image_ship[len(self.image_ship) - 1].rotate()
+        for i in self.image_ship:
+            i.draw()
+        for i,v in Backend.player_hits.items():
+            if(v):
+                self.grid.frame.blit(pygame.transform.scale(self.fire,
+                (self.grid.h//10,self.grid.h//10)),
+                (self.grid.x + i[1]*self.grid.h//10,
+                 self.grid.y + i[0]*self.grid.h//10))  
+            else:
+                self.grid.frame.blit(pygame.transform.scale(self.cross,
+                (self.grid.h//10,self.grid.h//10)),
+                (self.grid.x + i[1]*self.grid.h//10,
+                 self.grid.y + i[0]*self.grid.h//10))  
+        for i in self.location:
+            if(i[0] < 0 or i[0] > 9 or i[1] < 0 or i[1] > 9):
+                continue
+            else:
+                if(not Backend.user_hit_at(i[1],i[0])):
+                    self.grid.frame.blit(pygame.transform.scale(self.splash,
+                    (self.grid.h//10,self.grid.h//10)),
+                    (self.grid.x + i[0]*self.grid.h//10,
+                     self.grid.y + i[1]*self.grid.h//10))
+                else:
+                    self.grid.frame.blit(pygame.transform.scale(self.fire,
+                    (self.grid.h//10,self.grid.h//10)),
+                    (self.grid.x + i[0]*self.grid.h//10,
+                     self.grid.y + i[1]*self.grid.h//10))                    
+
+class Score_Board(Icon):
+    def __init__(self,x:int,y:int,width:int,height:int,frame:pygame.display):
+        super().__init__(x,y,width,height,frame)
+        self.panel = pygame.Surface((self.w,self.h),pygame.SRCALPHA)
+        self.panel.fill((0,0,0,150))
+    def draw(self):
+        font = pygame.font.Font(None,50)
+        text = font.render("Human",True,(255,255,255))        
+        text = pygame.transform.scale(text,(int(0.25*self.w),int(0.2*self.h)))
+        a = Backend.get_score()
+        self.frame.blit(self.panel,(self.x,self.y))        
+        self.frame.blit(text,(int(self.x + 0.1*self.w),
+                              int(self.y + 0.1*self.h)))
+        text = font.render(str(a[1]),True,(255,255,255))     
+        if(a[1] > 10):
+            text = pygame.transform.scale(text,(int(0.15*self.w),
+                                                int(0.2*self.h)))
+        else:
+            text = pygame.transform.scale(text,(int(0.05*self.w),
+                                            int(0.2*self.h)))
+        self.frame.blit(text,(int(self.x + 0.13*self.w),
+                        int(self.y + 0.5*self.h)))
+        text = font.render(str(a[0]),True,(255,255,255)) 
+        if(a[0] > 10):
+            text = pygame.transform.scale(text,(int(0.13*self.w),
+                                                int(0.2*self.h)))
+        else:
+            text = pygame.transform.scale(text,(int(0.05*self.w),
+                                            int(0.2*self.h))) 
+        self.frame.blit(text,(int(self.x + 0.7*self.w),
+                        int(self.y + 0.5*self.h)))            
+        text = font.render("AI",True,(255,255,255))        
+        text = pygame.transform.scale(text,(int(0.1*self.w),int(0.2*self.h)))        
+        self.frame.blit(text,(int(self.x + 0.68*self.w),
+                              int(self.y + 0.1*self.h))) 
+   
 class Event_Subject():
     def __init__(self):
         self._mouse_hover = []
@@ -509,4 +759,9 @@ class Event_Subject():
     def draw(self):
         for i in self._draw_list:
             i.draw()
-   
+    def clear_all(self):
+        self._mouse_hover = []
+        self._mouse_down = []
+        self._mouse_up = []
+        self._key_r = []
+        self._draw_list = []
