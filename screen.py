@@ -653,14 +653,14 @@ class Effect_Board(Draw):
     def reset(self):
         self.location.clear()
     def draw(self):
-        a = Backend.check()
-        if(a != None):
-            self.image_ship.append(Ship(a[0] + ".png",
-                                        self.grid.x + a[1][1]*self.grid.h//10,
-                                        self.grid.y + a[1][0]*self.grid.h//10,
-                                        self.grid.frame))
-            if(a[1][2] == 'h'):
-                self.image_ship[len(self.image_ship) - 1].rotate()
+        #a = Backend.check()
+        #if(a != None):
+        #    self.image_ship.append(Ship(a[0] + ".png",
+        #                                self.grid.x + a[1][1]*self.grid.h//10,
+        #                                self.grid.y + a[1][0]*self.grid.h//10,
+        #                                self.grid.frame))
+        #    if(a[1][2] == 'h'):
+        #        self.image_ship[len(self.image_ship) - 1].rotate()
         for i in self.image_ship:
             i.draw()
         for i,v in Backend.player_hits.items():
