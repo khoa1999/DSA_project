@@ -2,6 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 Created on Thu Mar 28 16:03:56 2019
+
+@author: Ho Dang Phuong Ngoc
+
 """
 import DSA_battleship as bs
 
@@ -122,9 +125,50 @@ class Backend:
     def check():
         if(Backend.flag):
             Backend.flag = False
-            print([Backend.battleShipGame.getLatestSunkShipName(True),
-                    Backend.battleShipGame.getLatestSunkShipName(True)])
+            a = Backend.battleShipGame.getLatestSunkShipPosition(True)
+            b = None
+            if(a[0] == 'A'):
+                b = 0
+            elif(a[0] == 'B'):
+                b = 1
+            elif(a[0] == 'C'):
+                b = 2
+            elif(a[0] == 'D'):
+                b = 3
+            elif(a[0] == 'E'):
+                b = 4
+            elif(a[0] == 'F'):
+                b = 5
+            elif(a[0] == 'G'):
+                b = 6
+            elif(a[0] == 'H'):
+                b = 7
+            elif(a[0] == "I"):
+                b = 8
+            elif(a[0] == 'J'):
+                b = 9
             return [Backend.battleShipGame.getLatestSunkShipName(True),
-                    Backend.battleShipGame.getLatestSunkShipName(True)]
+                [a[1] - 1,b,a[2]]]
         return None
+    @staticmethod
+    def get_health(name:str):
+        return Backend.fleetDictionary[name]
+    
+    
+    
+    
+    
+        
+    
+    
+        
+    
+        
+        
+        
+        
+        
+        
+        
+    
     
