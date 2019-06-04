@@ -8,7 +8,6 @@ import time
 from abc import ABC,abstractmethod
 from os import path
 from numpy.random import randint
-from copy import deepcopy
 import pygame
 from backend import Backend
 
@@ -84,7 +83,8 @@ class Text(Decorator):
         super().__init__(panel)
         self.color = color
         self.text = text
-        self.font =  pygame.font.Font(None,50)
+        self.font =  pygame.font.Font(path.join("fonts",
+                                                "font-times-new-roman.ttf"),50)
     def draw(self):
         text = self.font.render(self.text,True,self.color)
         self.parent.draw()
@@ -174,9 +174,8 @@ class Ship(Icon):
         else:
             prev = Ship._placed
             Ship._placed = False
-            self.rotate()
             self.image = pygame.transform.scale(self.image,
-                                                (y*self.get_health(),y))
+                                                (y,y*self.get_health()))
             Ship._placed = prev
     def is_fixed(self):
         return Ship._placed
@@ -288,7 +287,7 @@ class Grid(Icon):
             i.fixed()
             #Backend.set_computer_ship()
             return True
-        Backend.start_game()
+        #Backend.start_game()
         return False
     
     def set_hit(self,x:int,y:int):
@@ -418,12 +417,18 @@ class Player_Board(Draw):
     def __init__(self,board:Grid):
         self.board = board
         self.fire =  pygame.image.load(path.join("images","fire.png"))
+        self.show = False
+    def set_draw_last_hit(self):
+        self.show = True
+    def reset_draw_last_hit(self):
+        self.show = False
     def draw(self):
         self.board.draw()
         for i in self.board.list_ship:
             i.draw()
-        for i,v in Backend.computer_hits.items():
-            if(v):
+        a = list(Backend.computer_hits.items())
+        for i,v in a:
+            if(v and ((i != a[-1][0]) or self.show)):
                 self.board.frame.blit(pygame.transform.scale(self.fire,(self.board.h//10,
                                                                         self.board.h//10)),
                                       (self.board.x + i[1]*self.board.h//10,
@@ -513,24 +518,25 @@ class Button(Event):
     def draw(self):
         self.icon.draw()
         self.listener.draw()
-    @classmethod
-    def create_text_button(cls,x:int,y:int,length:int,height:int,text:str,
+    @staticmethod
+    def create_text_button(x:int,y:int,length:int,height:int,text:str,
                          color_bg:tuple,color_txt:tuple,frame:pygame.display):
         p = Panel(x,y,length,height,color_bg,frame)
         text = Text(text,color_txt,p)
-        return cls(text)
-    @classmethod
-    def create_image_button(cls,x:int,y:int,length:int,height:int,color:tuple,
+        return Button(text)
+    @staticmethod
+    def create_image_button(x:int,y:int,length:int,height:int,color:tuple,
                             link:str,frame:pygame.display):
         p = Panel(x,y,length,height,color,frame)
         i = Image(link,p)
-        return cls(i)
+        return Button(i)
 
 class Info(Draw):
     def __init__(self,x:int,y:int,w:int,h:int,frame:pygame.display):
         self.base_panel = Panel(x,y,w,h,(0,0,0),frame)
         self.text = ["",""]
-        self.font = pygame.font.Font(None,50)
+        self.font = pygame.font.Font(path.join("fonts",
+                                               "font-times-new-roman.ttf"),50)
         self.frame = frame
         self.color = (0,205,0)
     def draw(self):
@@ -608,11 +614,11 @@ class Loser(Draw):
         
 class Shell(Icon):
     def __init__(self,width:int,height:int,frame:pygame.display):
-        self.proto = pygame.image.load(path.join("images","bullet1.png"))
+        self.proto = pygame.image.load(path.join("images","bullet4.png"))
         self.shell = pygame.transform.scale(self.proto,
-                                            (int(8*height//(21*3)),
-                                             height//21))
-        super().__init__(0,0,int(8*height//(21*3)),height//21,frame)
+                                            (int(height//(15)),
+                                             height//15))
+        super().__init__(0,0,int(height//(15)),height//15,frame)
         self.angle = 0
     def draw(self):      
         self.frame.blit(self.shell,(self.x,self.y))
@@ -655,12 +661,14 @@ class Effect_Board(Draw):
     def draw(self):
         a = Backend.check()
         if(a != None):
-            self.image_ship.append(Ship(a[0] + ".png",
-                                        self.grid.x + a[1][1]*self.grid.h//10,
-                                        self.grid.y + a[1][0]*self.grid.h//10,
-                                        self.grid.frame))
+            b = Ship(a[0] + ".png",self.grid.x + a[1][0]*self.grid.h//10,
+                 self.grid.y + a[1][1]*self.grid.h//10,Backend.get_health(a[0]),
+                 self.grid.frame)
+            b.resize(self.grid.h//10)
+            self.image_ship.append(b)
             if(a[1][2] == 'h'):
-                self.image_ship[len(self.image_ship) - 1].rotate()
+                Ship._placed = False
+                b.rotate()
         for i in self.image_ship:
             i.draw()
         for i,v in Backend.player_hits.items():
@@ -681,12 +689,12 @@ class Effect_Board(Draw):
                 if(not Backend.user_hit_at(i[1],i[0])):
                     self.grid.frame.blit(pygame.transform.scale(self.splash,
                     (self.grid.h//10,self.grid.h//10)),
-                    (self.grid.x + i[0]*self.grid.h//10,
+                    (self.grid.x + i[0]*self.grid.w//10,
                      self.grid.y + i[1]*self.grid.h//10))
                 else:
                     self.grid.frame.blit(pygame.transform.scale(self.fire,
                     (self.grid.h//10,self.grid.h//10)),
-                    (self.grid.x + i[0]*self.grid.h//10,
+                    (self.grid.x + i[0]*self.grid.w//10,
                      self.grid.y + i[1]*self.grid.h//10))                    
 
 class Score_Board(Icon):
@@ -695,7 +703,8 @@ class Score_Board(Icon):
         self.panel = pygame.Surface((self.w,self.h),pygame.SRCALPHA)
         self.panel.fill((0,0,0,150))
     def draw(self):
-        font = pygame.font.Font(None,50)
+        font = pygame.font.Font(path.join("fonts",
+                                          "font-times-new-roman.ttf"),50)
         text = font.render("Human",True,(255,255,255))        
         text = pygame.transform.scale(text,(int(0.25*self.w),int(0.2*self.h)))
         a = Backend.get_score()

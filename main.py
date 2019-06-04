@@ -69,7 +69,6 @@ class Hu():
                 Hu.subject.enter_state()
     @staticmethod
     def load():
-        Backend.start_game()
         Hu.size = get_prefer_size()
         Hu.width = Hu.size[0]
         Hu.height = Hu.size[1]
@@ -99,6 +98,7 @@ class Hu():
         
         Hu.fps_clock = pygame.time.Clock()
         
+        Backend.start_game()
         Hu.weapons.append(Shell(Hu.width,Hu.height,Hu.main_panel))
         Hu.weapons.append(Missile(Hu.width,Hu.height,Hu.main_panel))
         Hu.score_board = Score_Board(0,0,2*Hu.width//5,
@@ -145,17 +145,19 @@ class Intro_State(Abstract_State):
         size = (int(Hu.height/3.5)*4,int(Hu.height/3.5))#để đảm bảo truy cập đc file
         logo = pygame.transform.scale(logo,size)#nhất là trên MAC CỦA NGỌC :)0
         lg = JustDraw(logo,Hu.main_panel,int(Hu.width/2 - size[0]/2),0)
-        
+
         length = int(Hu.width//5)
-        height = int(Hu.height//9) 
+        height = int(Hu.height//9)
         start = Button.create_text_button(Hu.width//2 - length//2,
                     int(5*Hu.height/6),length,height,'START',(255,48,48),
                     (255,193,193),Hu.main_panel)
         start.set_listener(Start_Listener(start))
         self._mouse_hover.append(start)
         self._mouse_up.append(start)
-        self._draw_list = [intro_bg,lg,start]
-
+        self.add_draw_list(intro_bg)
+        self.add_draw_list(lg)
+        self.add_draw_list(start)
+        
 class Place_Ship_State(Abstract_State):
     def __init__(self):
         super().__init__("Place")
@@ -221,11 +223,6 @@ class Count_Down_State(Abstract_State):
         self.add_draw_list(Panel(0,0,Hu.width,Hu.height,
                                      (0,0,0,200),Hu.main_panel))
         self.add_draw_list(self.count_down)     
-        #b = Button.create_image_button(0,0,Hu.width//21,Hu.width//21,
-        #                               (255,255,255),"pause.png",Hu.main_panel)
-        #b.set_listener(Pause_Listener(b))
-        #self.add_draw_list(b)
-        #self.add_mouse_up(b)
         self.count_down.start()
         Hu.states["Place"].clear_all()
     def _special_condition(self):
@@ -321,7 +318,7 @@ class Weapon_State(Abstract_State):
             return False
         elif(self.tick < 50 and self.choice == 0):
             a = Hu.weapons[self.choice]
-            a.x += self.actual_location[0]//49
+            a.x += self.actual_location[0]//48
             a.y = (self.actual_location[1]/(self.actual_location[0])**2)*(a.x)**2
             a.reset()
             a.rotate(-90*np.arctan(2*(self.actual_location[1]/(self.actual_location[0])**2)*a.x)/(np.pi/2))
@@ -348,34 +345,41 @@ class Weapon_State(Abstract_State):
                                  self.actual_location[0])/np.pi)
         elif(self.tick < 50 and self.choice == 1):
             a = Hu.weapons[self.choice]
-            a.x += self.actual_location[0]//49
-            a.y += self.actual_location[1]//49
+            a.x += self.actual_location[0]//48
+            a.y += self.actual_location[1]//48
         
 class Computer_State(Abstract_State):
     def __init__(self):
         super().__init__("Computer")
         self.player_board = Player_Board(None)
         self.tick = 0
+        self.paused = False
     def _build_data(self):
         self.player_board.set_board(Hu.grid_player.grid)
         self.add_draw_list(Hu.bg)
         self.add_draw_list(Hu.info_board)
         self.add_draw_list(self.player_board)
         self.add_draw_list(Hu.weapons[0])
+        self.b = Button.create_image_button(0,0,Hu.width//21,Hu.width//21,
+                                       (255,255,255),"pause.png",Hu.main_panel)
+        self.b.set_listener(Pause_Listener(self.b))
+        self.add_draw_list(self.b)
+        self.add_mouse_up(self.b)        
     def set_location_fire(self,location:list):
         self.location = location
         self.actual_location = (Hu.grid_player.grid.x + location[0]*Hu.grid_player.grid.w//10,
                                 Hu.grid_player.grid.y + location[1]*Hu.grid_player.grid.h//10)
-        Hu.grid_player.grid.set_hit(self.location[0],self.location[1])
     def _special_condition(self):
-        self.tick += 1
+        if(not self.paused):
+            self.tick += 1
         a = Hu.weapons[0]
         if(Backend.check_win()[1]):
             self._next = Hu.states["Loser"]
         else:
             self._next = Hu.states["Player"]
-        if(self.tick < 40):
-            a.x += self.actual_location[0]//40
+        if(self.tick < 50 and not self.paused):
+            self.player_board.reset_draw_last_hit()
+            a.x += self.actual_location[0]//48
             a.y = (self.actual_location[1]/(self.actual_location[0])**2)*(a.x)**2
             a.reset()
             a.rotate(-90*np.arctan(2*(self.actual_location[1]/(self.actual_location[0])**2)*a.x)/(np.pi/2))
@@ -385,7 +389,9 @@ class Computer_State(Abstract_State):
             a.x = 0
             a.y = 0
             self.tick = 0
-            return True            
+            return True
+        elif(self.tick == 50):
+            self.player_board.set_draw_last_hit()
     
 class Winner_State(Abstract_State):
     def __init__(self):
@@ -452,7 +458,7 @@ class Pause_Listener(Listener):
         temp = self.decorator#swap the icon 
         self.decorator = self.button.icon
         self.button.icon = temp
-        Hu.states["Count Down"].count_down.paused = not Hu.states["Count Down State"].count_down.paused
+        Hu.states["Computer"].paused = not Hu.states["Computer"].paused
 
 class Weapon_Listener(Listener):
     def __init__(self,button:Button,choice:int,string:str):
@@ -499,7 +505,6 @@ class Reset_Listener(Listener):
             v.has_data = False
         Hu.to_change_state = True
         Ship._placed = False
-        
         
 class Skip_Listener(Listener):
     def mouse_up_listener(self):
